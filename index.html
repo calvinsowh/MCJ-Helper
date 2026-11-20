@@ -1,20 +1,20 @@
-<!DOCTYPE html>
+updated_html = """<!DOCTYPE html>
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.1)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.2)</title>
   <style>
     :root {
-      --bg-dark: #0b111e;
-      --panel-bg: #131c2e;
-      --panel-border: #1f2d47;
+      --bg-dark: #070e18;
+      --panel-bg: #0c1726;
+      --panel-border: #172a42;
       --accent-green: #10b981;
       --accent-green-hover: #059669;
       --accent-blue: #3b82f6;
       --accent-amber: #f59e0b;
       --accent-red: #ef4444;
-      --text-main: #f1f5f9;
+      --text-main: #f8fafc;
       --text-muted: #94a3b8;
     }
 
@@ -33,6 +33,7 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      font-weight: 700;
     }
 
     header {
@@ -50,6 +51,7 @@
     .title-group h1 {
       font-size: 1.25rem;
       color: #fbbf24;
+      font-weight: 900;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -58,6 +60,7 @@
     .title-group p {
       font-size: 0.8rem;
       color: var(--text-muted);
+      font-weight: 700;
       margin-top: 4px;
     }
 
@@ -69,13 +72,13 @@
     }
 
     button, .file-btn, select {
-      background: #1e293b;
+      background: #102036;
       color: var(--text-main);
-      border: 1px solid #334155;
+      border: 1px solid #233b5c;
       padding: 8px 12px;
       border-radius: 8px;
       font-size: 0.84rem;
-      font-weight: 600;
+      font-weight: 800;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -88,7 +91,7 @@
     }
 
     button:hover, .file-btn:hover {
-      background: #334155;
+      background: #193152;
     }
 
     button.primary {
@@ -102,7 +105,7 @@
     }
 
     button.rec-btn {
-      background: rgba(239, 68, 68, 0.18);
+      background: rgba(239, 68, 68, 0.2);
       border-color: var(--accent-red);
       color: #fca5a5;
     }
@@ -119,17 +122,17 @@
     }
 
     button.auto-btn {
-      background: rgba(245, 158, 11, 0.18);
+      background: rgba(245, 158, 11, 0.2);
       border-color: var(--accent-amber);
       color: #fcd34d;
     }
 
     button.auto-btn:hover {
-      background: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.32);
     }
 
     button.crop-btn {
-      background: rgba(168, 85, 247, 0.2);
+      background: rgba(168, 85, 247, 0.22);
       border-color: #a855f7;
       color: #e9d5ff;
     }
@@ -139,33 +142,33 @@
     }
 
     button.standby-btn {
-      background: rgba(14, 165, 233, 0.18);
+      background: rgba(14, 165, 233, 0.22);
       border-color: #0ea5e9;
       color: #7dd3fc;
     }
 
     button.standby-btn:hover {
-      background: rgba(14, 165, 233, 0.32);
+      background: rgba(14, 165, 233, 0.35);
     }
 
     button.secondary-blue, .file-btn.secondary-blue {
-      background: rgba(59, 130, 246, 0.18);
+      background: rgba(59, 130, 246, 0.22);
       border-color: var(--accent-blue);
       color: #93c5fd;
     }
 
     button.secondary-blue:hover, .file-btn.secondary-blue:hover {
-      background: rgba(59, 130, 246, 0.3);
+      background: rgba(59, 130, 246, 0.35);
     }
 
     button.danger {
-      background: rgba(239, 68, 68, 0.15);
+      background: rgba(239, 68, 68, 0.18);
       border-color: var(--accent-red);
       color: #fca5a5;
     }
 
     button.danger:hover {
-      background: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.32);
     }
 
     input[type="file"] {
@@ -207,7 +210,8 @@
 
     .card-header h2 {
       font-size: 1rem;
-      color: #e2e8f0;
+      color: #f1f5f9;
+      font-weight: 900;
     }
 
     .toolbar-row {
@@ -218,8 +222,8 @@
     }
 
     .sample-maker-bar {
-      background: #0d1524;
-      border: 1px solid #28354f;
+      background: #091321;
+      border: 1px solid #1b314d;
       border-radius: 10px;
       padding: 10px 12px;
       display: flex;
@@ -228,13 +232,14 @@
       justify-content: space-between;
       gap: 8px;
       font-size: 0.82rem;
+      font-weight: 800;
     }
 
     .canvas-container {
       position: relative;
       width: 100%;
-      background: #060911;
-      border: 2px dashed #334155;
+      background: #050a12;
+      border: 2px dashed #254063;
       border-radius: 10px;
       overflow: hidden;
       aspect-ratio: 16 / 10;
@@ -259,6 +264,7 @@
       pointer-events: none;
       padding: 20px;
       font-size: 0.9rem;
+      font-weight: 700;
       line-height: 1.65;
     }
 
@@ -266,8 +272,8 @@
       position: absolute;
       top: 12px;
       right: 12px;
-      background: rgba(11, 17, 30, 0.92);
-      border: 1px solid var(--accent-green);
+      background: rgba(7, 17, 31, 0.94);
+      border: 1.5px solid #1e3a5f;
       border-radius: 10px;
       padding: 10px 14px;
       min-width: 225px;
@@ -277,19 +283,21 @@
 
     .live-badge .label {
       font-size: 0.72rem;
-      color: var(--text-muted);
+      color: #93c5fd;
+      font-weight: 800;
     }
 
     .live-badge .detected-dir {
-      font-size: 1.4rem;
-      font-weight: 800;
+      font-size: 1.45rem;
+      font-weight: 900;
       color: #fbbf24;
       margin: 2px 0;
     }
 
     .live-badge .meta {
-      font-size: 0.74rem;
-      color: #cbd5e1;
+      font-size: 0.75rem;
+      color: #e2e8f0;
+      font-weight: 800;
       line-height: 1.45;
     }
 
@@ -297,10 +305,10 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 10px;
-      background: #0d1524;
+      background: #091321;
       padding: 12px;
       border-radius: 10px;
-      border: 1px solid var(--panel-border);
+      border: 1px solid #1b314d;
     }
 
     .setting-item {
@@ -310,23 +318,25 @@
     }
 
     .setting-item label {
-      font-size: 0.74rem;
-      color: var(--text-muted);
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      font-weight: 800;
     }
 
     .setting-item input {
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: #102036;
+      border: 1px solid #264266;
       color: var(--text-main);
       padding: 6px 10px;
       border-radius: 6px;
-      font-size: 0.88rem;
+      font-size: 0.9rem;
+      font-weight: 800;
       width: 100%;
     }
 
     .quick-bar {
-      background: #0d1524;
-      border: 1px solid var(--panel-border);
+      background: #091321;
+      border: 1px solid #1b314d;
       border-radius: 10px;
       padding: 12px 16px;
       display: flex;
@@ -340,16 +350,17 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 1.15rem;
-      font-weight: 700;
+      font-size: 1.2rem;
+      font-weight: 900;
       flex-wrap: wrap;
     }
 
     .quick-pill {
-      background: #1e293b;
-      padding: 4px 10px;
-      border-radius: 6px;
-      border: 1px solid #334155;
+      background: #122640;
+      padding: 5px 11px;
+      border-radius: 7px;
+      border: 1px solid #284b78;
+      font-weight: 900;
     }
 
     .combo-grid {
@@ -359,9 +370,10 @@
       flex: 1;
     }
 
+    /* 藍色風格 ANS 卡片（參考圖2深藍＋藍框風格） */
     .combo-slot {
-      background: #0d1524;
-      border: 2px solid #1e293b;
+      background: #091629;
+      border: 2px solid #183254;
       border-radius: 12px;
       padding: 16px 12px;
       display: flex;
@@ -374,43 +386,45 @@
     }
 
     .combo-slot.active {
-      border-color: var(--accent-green);
-      background: rgba(16, 185, 129, 0.08);
-      box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+      border-color: #3b82f6;
+      background: #0d2240;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.24);
     }
 
     .combo-slot .slot-num {
       position: absolute;
       top: 8px;
       left: 10px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 900;
+      color: #93c5fd;
     }
 
     .combo-slot .slot-sample {
       position: absolute;
       top: 8px;
       right: 10px;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 800;
       color: #64748b;
     }
 
     .combo-slot .slot-arrow {
-      font-size: 2.2rem;
+      font-size: 2.35rem;
       font-weight: 900;
       margin: 6px 0;
     }
 
     .combo-slot .slot-conf {
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #cbd5e1;
     }
 
-    .dir-U { color: #38bdf8; }
-    .dir-D { color: #fbbf24; }
-    .dir-L { color: #f472b6; }
-    .dir-R { color: #34d399; }
+    .dir-U { color: #38bdf8; font-weight: 900; }
+    .dir-D { color: #fbbf24; font-weight: 900; }
+    .dir-L { color: #f472b6; font-weight: 900; }
+    .dir-R { color: #34d399; font-weight: 900; }
 
     .timeout-wrapper {
       display: flex;
@@ -422,13 +436,14 @@
       display: flex;
       justify-content: space-between;
       font-size: 0.8rem;
+      font-weight: 800;
       color: var(--text-muted);
     }
 
     .progress-bg {
       width: 100%;
       height: 8px;
-      background: #1e293b;
+      background: #102036;
       border-radius: 4px;
       overflow: hidden;
     }
@@ -441,8 +456,8 @@
     }
 
     .candidates-bar {
-      background: #0d1524;
-      border: 1px solid var(--panel-border);
+      background: #091321;
+      border: 1px solid #1b314d;
       border-radius: 10px;
       padding: 10px 14px;
       display: flex;
@@ -457,10 +472,12 @@
     }
 
     .cand-item {
-      background: #162033;
+      background: #0e1e33;
+      border: 1px solid #193152;
       padding: 8px 10px;
       border-radius: 6px;
       font-size: 0.8rem;
+      font-weight: 800;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -470,10 +487,12 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      font-weight: 900;
     }
 
     .cand-sub {
       font-size: 0.68rem;
+      font-weight: 800;
       color: #64748b;
     }
 
@@ -496,10 +515,10 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>背景水平基準線自動對齊、抗星星閃光干擾、Standby 防誤判與同色系多位移比對</p>
+      <p>背景水平基準線自動對齊、抗星星閃光干擾、Standby 防誤判與藍色 ANS 懸浮窗</p>
     </div>
     <div class="header-actions">
-      <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
+      <span id="sampleStatus" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 800;">
         <span class="status-dot" id="sampleDot"></span>已載入樣本：<strong id="sampleCount">0 動作 / 0 企直</strong>
       </span>
       <label class="file-btn" title="可一次過全選所有 B/P/Y + U/D/L/R 或 BS/PS/YS (Standby) 樣本圖">
@@ -529,7 +548,7 @@
       </div>
 
       <div class="sample-maker-bar">
-        <span style="color: #cbd5e1;">📥 建立同框樣本（自動對齊舞台基準線）：</span>
+        <span style="color: #e2e8f0; font-weight: 800;">📥 建立同框樣本（自動對齊舞台基準線）：</span>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
           <select id="cropCharSelect">
             <option value="B">B 藍貓</option>
@@ -552,7 +571,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 系統會自動尋找紅毯深色邊界作基準線對齊，減低框位偏差影響
+3. 5 秒無新變化會自動清除舊 ANS，保持畫面乾淨
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -562,7 +581,7 @@
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
+      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 800; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
         <span id="roiInfo">目前框選範圍：未設定（預設全畫面）</span>
         <span id="stageInfo">舞台狀態：未進入遊戲舞台</span>
       </div>
@@ -570,27 +589,27 @@
       <div class="settings-grid">
         <div class="setting-item">
           <label for="intervalInput">偵測間隔 (秒)</label>
-          <input type="number" id="intervalInput" value="0.12" min="0.05" max="2.0" step="0.01" />
+          <input type="number" id="intervalInput" value="0.15" min="0.05" max="2.0" step="0.01" />
         </div>
         <div class="setting-item">
           <label for="thresholdInput">信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="58" min="10" max="95" step="1" />
+          <input type="number" id="thresholdInput" value="85" min="10" max="95" step="1" />
         </div>
         <div class="setting-item">
           <label for="marginInput">領先差距 (%)</label>
-          <input type="number" id="marginInput" value="5.5" min="0" max="40" step="0.5" />
+          <input type="number" id="marginInput" value="15" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
           <label for="confirmFramesInput">連續確認幀數</label>
-          <input type="number" id="confirmFramesInput" value="2" min="1" max="5" step="1" />
+          <input type="number" id="confirmFramesInput" value="1" min="1" max="5" step="1" />
         </div>
         <div class="setting-item">
           <label for="minComboInput">最少 Combo 數</label>
-          <input type="number" id="minComboInput" value="4" min="1" max="6" step="1" />
+          <input type="number" id="minComboInput" value="2" min="1" max="6" step="1" />
         </div>
         <div class="setting-item">
           <label for="hideBelowInput">少於幾多不顯示</label>
-          <input type="number" id="hideBelowInput" value="3" min="0" max="6" step="1" />
+          <input type="number" id="hideBelowInput" value="2" min="0" max="6" step="1" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合超時 (秒)</label>
@@ -606,9 +625,9 @@
     <!-- Right Panel -->
     <section class="card">
       <div class="card-header">
-        <h2>2. 即時動作 Combo 順序 (背景對齊＋抗誤判)</h2>
+        <h2>2. 即時動作 Combo 順序 (藍色 ANS / 5秒自動清空)</h2>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <span id="roundBadge" style="background: #1e293b; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; color: #38bdf8;">
+          <span id="roundBadge" style="background: #0d2240; border: 1px solid #1e3f6e; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 900; color: #60a5fa;">
             狀態：等待新一輪
           </span>
           <button class="danger" id="clearComboBtn">🧹 清空本輪</button>
@@ -616,9 +635,9 @@
       </div>
 
       <div class="quick-bar">
-        <span style="font-size: 0.85rem; color: var(--text-muted);">快速序列：</span>
+        <span style="font-size: 0.85rem; font-weight: 800; color: var(--text-muted);">快速序列：</span>
         <div class="quick-sequence" id="quickSequence">
-          <span style="color: #64748b; font-size: 0.9rem;">少於設定數量暫不顯示</span>
+          <span style="color: #64748b; font-size: 0.9rem; font-weight: 800;">少於設定數量暫不顯示</span>
         </div>
       </div>
 
@@ -626,7 +645,7 @@
 
       <div class="timeout-wrapper">
         <div class="timeout-info">
-          <span id="timeoutText">無新動作自動結算本輪（少於最少 Combo 數會作廢）</span>
+          <span id="timeoutText">5 秒無新變化自動清除 ANS（少於最少 Combo 數會作廢）</span>
           <span id="timeoutCountdown">0.0s</span>
         </div>
         <div class="progress-bg">
@@ -635,9 +654,9 @@
       </div>
 
       <div class="candidates-bar">
-        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 800; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
           <span id="charDetectLabel">同色系角色比對池（角色鎖定：未偵測）：</span>
-          <span id="anchorInfo" style="color: #38bdf8;">基準線: --</span>
+          <span id="anchorInfo" style="color: #60a5fa;">基準線: --</span>
           <span id="leadInfo" style="color: #fbbf24;">領先差距: --%</span>
         </div>
         <div class="candidate-list">
@@ -677,6 +696,7 @@
     const ALIGN_H = 88;
     const TARGET_LINE_Y = 68;
     const MAX_COMBO = 6;
+    const STALE_CLEAR_MS = 5000; // 5 秒無變化自動清空 ANS
 
     const DIR_MAP = {
       U: { label: '↑ 上', arrow: '↑', text: '上', class: 'dir-U', freq: 523.25 },
@@ -719,6 +739,7 @@
     let candidateDir = null;
     let candidateStreak = 0;
     let lastActionTimestamp = 0;
+    let lastChangeTimestamp = 0; // 記錄上一次 Combo 序列有變化嘅時間（用於 5 秒無變化清除）
     let roundFinished = false;
 
     const video = document.getElementById('sourceVideo');
@@ -733,6 +754,17 @@
 
     const DB_NAME = 'MCJDanceHelperDB_v11';
     const STORE_NAME = 'samples';
+
+    function clearAllComboState() {
+      currentCombo = [];
+      lastConfirmedDir = null;
+      candidateDir = null;
+      candidateStreak = 0;
+      lastActionTimestamp = 0;
+      lastChangeTimestamp = 0;
+      roundFinished = false;
+      renderComboUI();
+    }
 
     function openDB() {
       return new Promise((resolve, reject) => {
@@ -1313,13 +1345,7 @@
       }
       stopDetectionLoop();
 
-      currentCombo = [];
-      lastConfirmedDir = null;
-      candidateDir = null;
-      candidateStreak = 0;
-      lastActionTimestamp = 0;
-      roundFinished = false;
-      renderComboUI();
+      clearAllComboState();
 
       const img = new Image();
       img.onload = () => {
@@ -1394,9 +1420,7 @@
       }
       updateRoiInfo();
       if (sourceMode === 'image') {
-        currentCombo = [];
-        lastConfirmedDir = null;
-        renderComboUI();
+        clearAllComboState();
         runDetectionStep(true);
       }
     });
@@ -1405,9 +1429,7 @@
       roi = null;
       updateRoiInfo();
       if (sourceMode === 'image') {
-        currentCombo = [];
-        lastConfirmedDir = null;
-        renderComboUI();
+        clearAllComboState();
         runDetectionStep(true);
       }
     });
@@ -1570,8 +1592,8 @@
 
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
-      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 5.5;
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 85;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 15;
 
       if (standbyScore > 0 && standbyScore >= top1.score - 2.0) {
         candidateDir = null;
@@ -1606,7 +1628,7 @@
     function handleValidDetection(dir, sampleName, score, isManualTest = false) {
       const now = performance.now();
       const timeoutMs = (parseFloat(document.getElementById('timeoutInput').value) || 2.2) * 1000;
-      const reqConfirmFrames = Math.max(1, parseInt(document.getElementById('confirmFramesInput').value, 10) || 2);
+      const reqConfirmFrames = Math.max(1, parseInt(document.getElementById('confirmFramesInput').value, 10) || 1);
 
       if (isManualTest) {
         currentCombo = [{
@@ -1617,6 +1639,9 @@
           timestamp: now
         }];
         lastConfirmedDir = dir;
+        lastActionTimestamp = now;
+        lastChangeTimestamp = now;
+        roundFinished = false;
         renderComboUI();
         return;
       }
@@ -1645,6 +1670,7 @@
       if (currentCombo.length < MAX_COMBO) {
         lastConfirmedDir = dir;
         lastActionTimestamp = now;
+        lastChangeTimestamp = now;
         currentCombo.push({
           dir,
           sampleName,
@@ -1659,12 +1685,23 @@
     }
 
     function updateTimeoutUI() {
+      const now = performance.now();
       const timeoutSec = parseFloat(document.getElementById('timeoutInput').value) || 2.2;
       const timeoutMs = timeoutSec * 1000;
-      const minComboReq = parseInt(document.getElementById('minComboInput').value, 10) || 4;
+      const minComboReq = parseInt(document.getElementById('minComboInput').value, 10) || 2;
       const bar = document.getElementById('timeoutBar');
       const countdown = document.getElementById('timeoutCountdown');
       const badge = document.getElementById('roundBadge');
+
+      // 5 秒無變化就自動清除舊 ANS，唔再繼續顯示舊答案
+      if (currentCombo.length > 0 && lastChangeTimestamp > 0 && (now - lastChangeTimestamp) >= STALE_CLEAR_MS) {
+        clearAllComboState();
+        bar.style.width = '0%';
+        countdown.textContent = '5.0s 已清空';
+        badge.textContent = `狀態：5秒無變化已清除 (需≥${minComboReq}個)`;
+        badge.style.color = '#60a5fa';
+        return;
+      }
 
       if (sourceMode === 'image') {
         bar.style.width = '100%';
@@ -1679,20 +1716,14 @@
         bar.style.width = '0%';
         countdown.textContent = '0.0s';
         badge.textContent = `狀態：等待新一輪 (需≥${minComboReq}個)`;
-        badge.style.color = '#38bdf8';
+        badge.style.color = '#60a5fa';
         return;
       }
 
-      const elapsed = performance.now() - lastActionTimestamp;
+      const elapsed = now - lastActionTimestamp;
       if (elapsed >= timeoutMs) {
         if (currentCombo.length < minComboReq) {
-          currentCombo = [];
-          lastConfirmedDir = null;
-          candidateDir = null;
-          candidateStreak = 0;
-          lastActionTimestamp = 0;
-          roundFinished = false;
-          renderComboUI();
+          clearAllComboState();
           bar.style.width = '0%';
           countdown.textContent = '不足已作廢';
           badge.textContent = `狀態：不足 ${minComboReq} 個已過濾`;
@@ -1700,12 +1731,13 @@
           return;
         }
 
+        const idleSec = Math.max(0, (STALE_CLEAR_MS - (now - lastChangeTimestamp)) / 1000);
         roundFinished = true;
         bar.style.width = '100%';
-        bar.style.background = '#10b981';
-        countdown.textContent = '本輪已鎖定';
+        bar.style.background = '#3b82f6';
+        countdown.textContent = `${idleSec.toFixed(1)}s 後清空`;
         badge.textContent = `狀態：本輪完成 (${currentCombo.length} 個動作)`;
-        badge.style.color = '#34d399';
+        badge.style.color = '#60a5fa';
         renderComboUI();
       } else {
         const pct = (elapsed / timeoutMs) * 100;
@@ -1727,7 +1759,7 @@
         slot.innerHTML = `
           <span class="slot-num">#${i + 1}</span>
           <span class="slot-sample">-</span>
-          <div class="slot-arrow" style="color: #334155;">-</div>
+          <div class="slot-arrow" style="color: #254063;">-</div>
           <div class="slot-conf">等待偵測</div>
         `;
         grid.appendChild(slot);
@@ -1737,23 +1769,23 @@
     function shouldDisplayCombo() {
       if (sourceMode === 'image') return currentCombo.length > 0;
       const hideBelow = parseInt(document.getElementById('hideBelowInput').value, 10);
-      const thresholdCount = Number.isNaN(hideBelow) ? 3 : hideBelow;
+      const thresholdCount = Number.isNaN(hideBelow) ? 2 : hideBelow;
       return currentCombo.length >= thresholdCount && currentCombo.length > 0;
     }
 
     function renderComboUI() {
       const quickEl = document.getElementById('quickSequence');
       const hideBelow = parseInt(document.getElementById('hideBelowInput').value, 10);
-      const thresholdCount = Number.isNaN(hideBelow) ? 3 : hideBelow;
+      const thresholdCount = Number.isNaN(hideBelow) ? 2 : hideBelow;
       const canShow = shouldDisplayCombo();
 
       if (!canShow) {
-        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.9rem;">尚未達 ${thresholdCount} 個動作，暫不顯示</span>`;
+        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.9rem; font-weight: 800;">尚未達 ${thresholdCount} 個動作，暫不顯示</span>`;
       } else {
         quickEl.innerHTML = currentCombo.map(item => {
           const info = DIR_MAP[item.dir];
           return `<span class="quick-pill ${info.class}">${info.label}</span>`;
-        }).join('<span style="color:#475569;">➔</span>');
+        }).join('<span style="color:#60a5fa; font-weight:900;">➔</span>');
       }
 
       for (let i = 0; i < MAX_COMBO; i++) {
@@ -1773,7 +1805,7 @@
           slot.innerHTML = `
             <span class="slot-num">#${i + 1}</span>
             <span class="slot-sample">-</span>
-            <div class="slot-arrow" style="color: #334155;">-</div>
+            <div class="slot-arrow" style="color: #254063;">-</div>
             <div class="slot-conf">${!canShow && currentCombo.length > 0 ? `已收集 ${currentCombo.length}/${thresholdCount}` : '等待偵測'}</div>
           `;
         }
@@ -1785,12 +1817,16 @@
     const pipVideo = document.getElementById('pipVideo');
 
     function drawPiPCanvas() {
-      pipCtx.fillStyle = '#0b111e';
+      // 參考圖2深藍背景風格
+      pipCtx.fillStyle = '#071121';
       pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
+      pipCtx.strokeStyle = '#1e3a5f';
+      pipCtx.lineWidth = 3;
+      pipCtx.strokeRect(1.5, 1.5, pipCanvas.width - 3, pipCanvas.height - 3);
 
       const canShow = shouldDisplayCombo();
-      pipCtx.fillStyle = '#94a3b8';
-      pipCtx.font = 'bold 14px sans-serif';
+      pipCtx.fillStyle = '#93c5fd';
+      pipCtx.font = '900 14px sans-serif';
       pipCtx.fillText(
         roundFinished && canShow
           ? `MCJ 本輪完成 (${currentCombo.length} 步)`
@@ -1799,8 +1835,8 @@
       );
 
       if (!canShow) {
-        pipCtx.fillStyle = '#475569';
-        pipCtx.font = 'bold 20px sans-serif';
+        pipCtx.fillStyle = '#47658a';
+        pipCtx.font = '900 20px sans-serif';
         pipCtx.fillText('等待足夠動作數...', 16, 95);
         return;
       }
@@ -1810,18 +1846,18 @@
       currentCombo.forEach((item, idx) => {
         const x = 16 + idx * (boxW + gap);
         const y = 45;
-        pipCtx.fillStyle = '#131c2e';
-        pipCtx.strokeStyle = '#10b981';
-        pipCtx.lineWidth = 2;
+        pipCtx.fillStyle = '#0c203d';
+        pipCtx.strokeStyle = '#3b82f6';
+        pipCtx.lineWidth = 2.5;
         pipCtx.fillRect(x, y, boxW, 90);
         pipCtx.strokeRect(x, y, boxW, 90);
 
         const colors = { U: '#38bdf8', D: '#fbbf24', L: '#f472b6', R: '#34d399' };
         pipCtx.fillStyle = colors[item.dir];
-        pipCtx.font = 'bold 28px sans-serif';
+        pipCtx.font = '900 28px sans-serif';
         pipCtx.textAlign = 'center';
         pipCtx.fillText(DIR_MAP[item.dir].arrow, x + boxW / 2, y + 42);
-        pipCtx.font = 'bold 18px sans-serif';
+        pipCtx.font = '900 18px sans-serif';
         pipCtx.fillText(DIR_MAP[item.dir].text, x + boxW / 2, y + 72);
         pipCtx.textAlign = 'left';
       });
@@ -1844,7 +1880,7 @@
 
     function restartDetectionLoop() {
       stopDetectionLoop();
-      const sec = parseFloat(document.getElementById('intervalInput').value) || 0.12;
+      const sec = parseFloat(document.getElementById('intervalInput').value) || 0.15;
       const ms = Math.max(50, Math.round(sec * 1000));
       detectTimer = setInterval(() => runDetectionStep(false), ms);
     }
@@ -1873,13 +1909,7 @@
     });
 
     document.getElementById('clearComboBtn').addEventListener('click', () => {
-      currentCombo = [];
-      lastConfirmedDir = null;
-      candidateDir = null;
-      candidateStreak = 0;
-      lastActionTimestamp = 0;
-      roundFinished = false;
-      renderComboUI();
+      clearAllComboState();
     });
 
     document.getElementById('soundToggle').addEventListener('click', (e) => {
@@ -1892,3 +1922,9 @@
   </script>
 </body>
 </html>
+"""
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(updated_html)
+
+print("Updated index.html successfully.")
