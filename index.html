@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11 背景對齊＋抗干擾版)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.1)</title>
   <style>
     :root {
       --bg-dark: #0b111e;
@@ -500,7 +500,7 @@
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
-        <span class="status-dot" id="sampleDot"></span>已載入樣本：<strong id="sampleCount">0</strong> 張
+        <span class="status-dot" id="sampleDot"></span>已載入樣本：<strong id="sampleCount">0 動作 / 0 企直</strong>
       </span>
       <label class="file-btn" title="可一次過全選所有 B/P/Y + U/D/L/R 或 BS/PS/YS (Standby) 樣本圖">
         📁 匯入樣本圖 (可多選)
@@ -671,14 +671,11 @@
   <video id="pipVideo" autoplay muted playsinline style="display: none;"></video>
 
   <script>
-    // ==========================================
-    // 1. Constants & State
-    // ==========================================
     const GRID_W = 48;
     const GRID_H = 44;
     const ALIGN_W = 96;
     const ALIGN_H = 88;
-    const TARGET_LINE_Y = 68; // 標準化深色地毯邊界線目標 Y 座標 (於 88px 高度內約 77.3%)
+    const TARGET_LINE_Y = 68;
     const MAX_COMBO = 6;
 
     const DIR_MAP = {
@@ -700,25 +697,23 @@
       'YD1.jpg', 'YD2.jpg', 'YL1.jpg', 'YL2.jpg', 'YR1.jpg', 'YR2.jpg', 'YR3.jpg', 'YU1.jpg', 'YU2.jpg'
     ];
 
-    let templates = []; // { name, char, dir, fgVec, shiftVecs }
-    let liveStandbyVec = null; // 使用者即時標記的 Standby 特徵向量
+    let templates = [];
+    let liveStandbyVec = null;
     let stream = null;
     let testImage = null;
-    let sourceMode = 'none'; // 'video' | 'image' | 'none'
+    let sourceMode = 'none';
     let detectTimer = null;
     let renderLoopStarted = false;
     let soundEnabled = true;
 
-    // Screen Recording State
     let mediaRecorder = null;
     let recordedChunks = [];
     let isRecording = false;
 
-    let roi = null; // { x, y, w, h }
+    let roi = null;
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
 
-    // Combo & Debounce State
     let currentCombo = [];
     let lastConfirmedDir = null;
     let candidateDir = null;
@@ -736,9 +731,6 @@
     const exportCropCanvas = document.getElementById('exportCropCanvas');
     const exportCropCtx = exportCropCanvas.getContext('2d');
 
-    // ==========================================
-    // 2. IndexedDB Sample Persistence (v11)
-    // ==========================================
     const DB_NAME = 'MCJDanceHelperDB_v11';
     const STORE_NAME = 'samples';
 
@@ -800,46 +792,27 @@
       return new Promise((res) => { tx.oncomplete = res; });
     }
 
-    // ==========================================
-    // 3. Background Anchor Alignment & Feature Extraction
-    // ==========================================
-    // 過濾靜態背景與星星/愛心高亮度閃光干擾
     function getPixelForegroundWeight(R, G, B, x, y) {
-      // 1. 綠幕/草綠背景牆
       if (G > R + 10 && G > B + 40 && R > 95 && B < 140) return 0.0;
-      // 2. 紅地毯區域
       if (R > 130 && R > G * 1.65 && R > B * 1.65) return 0.0;
-      // 3. 舞台深色橫條軌道 (R, G, B 都很低且接近中性灰黑)
       if (R < 45 && G < 45 && B < 45) return 0.0;
 
-      // 4. 抗星星/愛心特效干擾：極高亮度白邊光暈或高飽和突發金黃閃光邊緣
-      const maxC = Math.max(R, G, B);
       const minC = Math.min(R, G, B);
-      // 星星外圈常帶有極亮純白邊框 (R,G,B > 242 且低飽和)
       if (minC > 240) return 0.15;
 
-      // 5. 左右兩側太陽傘背景區域降權 (角色動作主要在中間 x: 7..40)
       let posWeight = 1.0;
       if (x < 5 || x > 42) posWeight = 0.25;
       else if (x < 8 || x > 39) posWeight = 0.65;
 
-      // 底部地毯陰影區降權
       if (y > 37) posWeight *= 0.45;
-
       return posWeight;
     }
 
-    /**
-     * 利用背景固定水平結構（紅地毯與深色橫條邊界）自動尋找垂直基準線並對齊
-     */
     function drawAlignedToProcCanvas(source, sx, sy, sw, sh) {
       alignCtx.clearRect(0, 0, ALIGN_W, ALIGN_H);
       alignCtx.drawImage(source, sx, sy, sw, sh, 0, 0, ALIGN_W, ALIGN_H);
 
       const imgData = alignCtx.getImageData(0, 0, ALIGN_W, ALIGN_H).data;
-
-      // 掃描 y = 52 .. 80 尋找橫跨畫面的深色軌道帶 (Dark Track Line)
-      // 因為左右兩側 (x < 24 及 x > 72) 較少被角色腳部完全遮住，優先統計兩側與整體暗像素比例
       let bestLineY = TARGET_LINE_Y;
       let bestScore = -1;
 
@@ -858,14 +831,12 @@
             darkSideCount += w;
           }
 
-          // 檢查上方 3px 是否為紅地毯
           if (y - 3 >= 0) {
             const idxUp = ((y - 3) * ALIGN_W + x) * 4;
             if (imgData[idxUp] > 130 && imgData[idxUp] > imgData[idxUp + 1] * 1.5) {
               redAboveCount += w;
             }
           }
-          // 檢查下方 3px 是否為紅地毯
           if (y + 3 < ALIGN_H) {
             const idxDn = ((y + 3) * ALIGN_W + x) * 4;
             if (imgData[idxDn] > 130 && imgData[idxDn] > imgData[idxDn + 1] * 1.5) {
@@ -874,7 +845,6 @@
           }
         }
 
-        // 深色軌道線上下兩側皆為紅地毯，結合這三個特徵精準鎖定軌道 Y 座標
         const lineScore = darkSideCount * 1.4 + Math.min(redAboveCount, redBelowCount) * 0.8;
         if (lineScore > bestScore) {
           bestScore = lineScore;
@@ -882,21 +852,25 @@
         }
       }
 
-      // 計算垂直偏移量 (限制在 ±10px 內避免誤判跳動)
       let shiftY = 0;
       if (bestScore > 22) {
         shiftY = Math.max(-10, Math.min(10, TARGET_LINE_Y - bestLineY));
       }
 
       procCtx.clearRect(0, 0, GRID_W, GRID_H);
-      // 將對齊後的畫面繪製到 48x44 處理畫布
       procCtx.drawImage(alignCanvas, 0, 0, ALIGN_W, ALIGN_H, 0, shiftY * 0.5, GRID_W, GRID_H);
 
       return { shiftY, anchorConfidence: bestScore };
     }
 
     function extractFeaturesFromImage(imgElement) {
-      drawAlignedToProcCanvas(imgElement, 0, 0, imgElement.width || imgElement.naturalWidth, imgElement.height || imgElement.naturalHeight);
+      drawAlignedToProcCanvas(
+        imgElement,
+        0,
+        0,
+        imgElement.width || imgElement.naturalWidth,
+        imgElement.height || imgElement.naturalHeight
+      );
       return extractFeaturesFromContext(procCtx);
     }
 
@@ -924,7 +898,6 @@
           const G = raw[i * 4 + 1];
           const B = raw[i * 4 + 2];
 
-          // 紅地毯判定區 (y: 31..42)
           if (y >= 31 && y <= 42) {
             bottomChecked++;
             if (R > 125 && R > G * 1.5 && R > B * 1.5) {
@@ -932,7 +905,6 @@
             }
           }
 
-          // 角色主色系投票區 (排除最外圍背景太陽傘)
           if (y >= 4 && y <= 33 && x >= 9 && x <= 38) {
             if (B > 160 && G > 130 && R < 120) {
               blueVotes++;
@@ -960,7 +932,6 @@
         else if (yellowVotes === maxColorVotes) detectedChar = 'Y';
       }
 
-      // 4 通道特徵：前景輪廓遮罩 + 梯度輪廓 + 兩組色度差
       const fgVec = new Float32Array(n * 4);
       let sum = 0;
 
@@ -971,7 +942,6 @@
 
           const gx = (x < GRID_W - 1 ? lum[i + 1] : lum[i]) - (x > 0 ? lum[i - 1] : lum[i]);
           const gy = (y < GRID_H - 1 ? lum[i + GRID_W] : lum[i]) - (y > 0 ? lum[i - GRID_W] : lum[i]);
-          // 抑制孤立高頻星星邊緣，保留主體輪廓
           const rawEdge = Math.min(0.65, Math.sqrt(gx * gx + gy * gy));
           const edge = rawEdge * (m > 0.3 ? 1.7 : 0.15);
 
@@ -1009,7 +979,6 @@
       }
     }
 
-    // 產生水平微位移容錯向量 (-2px, -1px, 0px, +1px, +2px)，解決左右框選微偏問題
     function buildHorizontalShiftVectors(baseVec) {
       const shifts = [-2, -1, 0, 1, 2];
       return shifts.map(dx => {
@@ -1045,12 +1014,12 @@
     }
 
     function parseSampleFilename(filename) {
-      const clean = filename.split('/').pop().split('\').pop().toUpperCase();
+      const parts = String(filename || '').split(/[/\\]/);
+      const clean = (parts[parts.length - 1] || '').trim().toUpperCase();
       if (clean.length < 2) return null;
       const charCode = clean[0];
       const dirCode = clean[1];
       if (!['B', 'P', 'Y'].includes(charCode)) return null;
-      // 支援 U/D/L/R 動作及 S (Standby 企直排除樣本)
       if (!['U', 'D', 'L', 'R', 'S'].includes(dirCode)) return null;
       return { name: filename, char: charCode, dir: dirCode };
     }
@@ -1068,7 +1037,7 @@
     }
 
     document.getElementById('sampleInput').addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files);
+      const files = Array.from(e.target.files || []);
       if (!files.length) return;
 
       const loaded = [];
@@ -1077,10 +1046,17 @@
         if (!meta) continue;
 
         const img = await new Promise((resolve) => {
+          const objUrl = URL.createObjectURL(file);
           const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => resolve(null);
-          image.src = URL.createObjectURL(file);
+          image.onload = () => {
+            URL.revokeObjectURL(objUrl);
+            resolve(image);
+          };
+          image.onerror = () => {
+            URL.revokeObjectURL(objUrl);
+            resolve(null);
+          };
+          image.src = objUrl;
         });
 
         if (img) {
@@ -1090,7 +1066,6 @@
             fgVec: feat.fgVec,
             shiftVecs: buildHorizontalShiftVectors(feat.fgVec)
           });
-          URL.revokeObjectURL(img.src);
         }
       }
 
@@ -1134,11 +1109,15 @@
     });
 
     async function initSamples() {
-      const cached = await loadSamplesFromDB();
-      if (cached.length > 0) {
-        templates = cached;
-        updateSampleUI();
-        return;
+      try {
+        const cached = await loadSamplesFromDB();
+        if (cached.length > 0) {
+          templates = cached;
+          updateSampleUI();
+          return;
+        }
+      } catch (err) {
+        console.warn('IndexedDB 載入略過：', err);
       }
 
       const fetched = [];
@@ -1166,14 +1145,13 @@
 
       if (fetched.length > 0) {
         templates = fetched;
-        await saveSamplesToDB(templates);
+        try {
+          await saveSamplesToDB(templates);
+        } catch (_) {}
         updateSampleUI();
       }
     }
 
-    // ==========================================
-    // 4. Screen Recording & ROI Crop Export
-    // ==========================================
     const recordBtn = document.getElementById('recordBtn');
 
     recordBtn.addEventListener('click', () => {
@@ -1250,9 +1228,6 @@
       link.click();
     });
 
-    // ==========================================
-    // 5. Auto Stage ROI Lock & Screen/Image Capture
-    // ==========================================
     function getActiveSourceSize() {
       if (sourceMode === 'video' && video.readyState >= 2) {
         return { src: video, w: video.videoWidth, h: video.videoHeight };
@@ -1488,9 +1463,6 @@
       requestAnimationFrame(render);
     }
 
-    // ==========================================
-    // 6. Detection Engine & Anti-Standby Debounce
-    // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
       try {
@@ -1519,7 +1491,6 @@
       const sh = roi ? roi.h : active.h;
       if (sw < 10 || sh < 10) return;
 
-      // 1. 先利用背景深色軌道線自動對齊 Y 軸
       const alignInfo = drawAlignedToProcCanvas(active.src, sx, sy, sw, sh);
       const currentFeat = extractFeaturesFromContext(procCtx);
 
@@ -1561,7 +1532,6 @@
       stageInfoEl.style.color = '#34d399';
       charLabelEl.textContent = `同色系比對池（${CHAR_NAMES[charCode]}，${sameColorPool.length} 動作）：`;
 
-      // 2. 計算 Standby 企直相似度 (如有標記或匯入 S 樣本)
       let standbyScore = 0;
       if (liveStandbyVec) {
         standbyScore = Math.max(standbyScore, computeBestShiftSimilarity(currentFeat.fgVec, liveStandbyVec));
@@ -1571,7 +1541,6 @@
         if (sc > standbyScore) standbyScore = sc;
       }
 
-      // 3. 使用水平多位移容錯 (-2..+2px) 比對四個方向
       const bestByDir = {
         U: { score: 0, name: '-' },
         D: { score: 0, name: '-' },
@@ -1604,11 +1573,10 @@
       const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
       const reqMargin = parseFloat(document.getElementById('marginInput').value) || 5.5;
 
-      // 若明顯處於企直 Standby 狀態，重置連續計數並阻擋誤判
       if (standbyScore > 0 && standbyScore >= top1.score - 2.0) {
         candidateDir = null;
         candidateStreak = 0;
-        lastConfirmedDir = null; // 回到企直代表上一個動作已結束，允許下一步相同方向連擊！
+        lastConfirmedDir = null;
         liveDirEl.textContent = '企直 Standby';
         liveDirEl.className = 'detected-dir';
         liveDirEl.style.color = '#7dd3fc';
@@ -1625,7 +1593,6 @@
 
         handleValidDetection(top1.dir, top1.name, top1.score, isManualTest);
       } else {
-        // 未達門檻時逐步衰減連續計數，避免過渡幀干擾
         candidateStreak = Math.max(0, candidateStreak - 1);
         if (candidateStreak === 0) candidateDir = null;
 
@@ -1654,7 +1621,6 @@
         return;
       }
 
-      // 連續幀數確認 (Debouncing)：防止過渡動作一閃即逝誤觸
       if (dir === candidateDir) {
         candidateStreak++;
       } else {
@@ -1751,9 +1717,6 @@
       }
     }
 
-    // ==========================================
-    // 7. Combo Grid & PiP Rendering
-    // ==========================================
     function initComboGrid() {
       const grid = document.getElementById('comboGrid');
       grid.innerHTML = '';
@@ -1879,9 +1842,6 @@
       }
     });
 
-    // ==========================================
-    // 8. Loop & Settings Listeners
-    // ==========================================
     function restartDetectionLoop() {
       stopDetectionLoop();
       const sec = parseFloat(document.getElementById('intervalInput').value) || 0.12;
