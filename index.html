@@ -72,9 +72,9 @@
       background: #1e293b;
       color: var(--text-main);
       border: 1px solid #334155;
-      padding: 8px 14px;
+      padding: 8px 13px;
       border-radius: 8px;
-      font-size: 0.875rem;
+      font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
@@ -95,6 +95,16 @@
 
     button.primary:hover {
       background: var(--accent-green-hover);
+    }
+
+    button.auto-btn {
+      background: rgba(245, 158, 11, 0.18);
+      border-color: var(--accent-amber);
+      color: #fcd34d;
+    }
+
+    button.auto-btn:hover {
+      background: rgba(245, 158, 11, 0.3);
     }
 
     button.secondary-blue, .file-btn.secondary-blue {
@@ -188,7 +198,7 @@
       pointer-events: none;
       padding: 20px;
       font-size: 0.9rem;
-      line-height: 1.6;
+      line-height: 1.65;
     }
 
     .live-badge {
@@ -199,7 +209,7 @@
       border: 1px solid var(--accent-green);
       border-radius: 10px;
       padding: 10px 14px;
-      min-width: 175px;
+      min-width: 185px;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
@@ -224,7 +234,7 @@
 
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
       gap: 10px;
       background: #0d1524;
       padding: 12px;
@@ -425,7 +435,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>支援即時遊戲視窗擷取、靜態 Cap Screen 測試校正、中心輪廓加權比對及防重複序列</p>
+      <p>一鍵自動框定舞台主角、支援 Cap Screen 測試校正、局部色彩與輪廓比對及防重複序列</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -451,6 +461,7 @@
             🖼️ 載入測試截圖
             <input type="file" id="testImageInput" accept="image/*" />
           </label>
+          <button class="auto-btn" id="autoLockBtn" title="自動套用 MCJ 大舞台中央主角偵測框">🎯 自動框定舞台</button>
           <button id="resetRoiBtn">🔄 重設框選</button>
         </div>
       </div>
@@ -459,7 +470,7 @@
         <div class="placeholder-text" id="placeholderText">
           1. 確認右上角已載入 25 張動作樣本<br />
           2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-          3. 載入畫面後，<strong>按住滑鼠左鍵拖曳</strong>框選跳舞公仔範圍
+          3. 點擊「<strong>🎯 自動框定舞台</strong>」或<strong>按住滑鼠左鍵拖曳</strong>框選公仔
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -481,11 +492,11 @@
         </div>
         <div class="setting-item">
           <label for="thresholdInput">辨識信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="58" min="20" max="95" step="1" />
+          <input type="number" id="thresholdInput" value="52" min="20" max="95" step="1" />
         </div>
         <div class="setting-item">
           <label for="marginInput">領先第2名差距 (%)</label>
-          <input type="number" id="marginInput" value="4" min="0" max="40" step="1" />
+          <input type="number" id="marginInput" value="2" min="0" max="40" step="1" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合結束超時 (秒)</label>
@@ -558,7 +569,7 @@
 
   <!-- Hidden elements -->
   <video id="sourceVideo" autoplay playsinline muted style="display: none;"></video>
-  <canvas id="procCanvas" width="64" height="72" style="display: none;"></canvas>
+  <canvas id="procCanvas" width="32" height="36" style="display: none;"></canvas>
   <canvas id="pipCanvas" width="420" height="160" style="display: none;"></canvas>
   <video id="pipVideo" autoplay muted playsinline style="display: none;"></video>
 
@@ -566,8 +577,8 @@
     // ==========================================
     // 1. Constants & State
     // ==========================================
-    const NORM_W = 64;
-    const NORM_H = 72;
+    const GRID_W = 32;
+    const GRID_H = 36;
     const MAX_COMBO = 6;
 
     const DIR_MAP = {
@@ -585,7 +596,7 @@
 
     let templates = [];
     let stream = null;
-    let testImage = null; // Static screenshot Image object for testing
+    let testImage = null;
     let sourceMode = 'none'; // 'video' | 'image' | 'none'
     let detectTimer = null;
     let renderLoopStarted = false;
@@ -606,22 +617,10 @@
     const procCanvas = document.getElementById('procCanvas');
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
-    // Precompute spatial center weights (character is in center, background umbrellas/carpet at edges)
-    const SPATIAL_WEIGHTS = new Float32Array(NORM_W * NORM_H);
-    for (let y = 0; y < NORM_H; y++) {
-      for (let x = 0; x < NORM_W; x++) {
-        const nx = (x - NORM_W / 2) / (NORM_W / 2);
-        const ny = (y - NORM_H / 2) / (NORM_H / 2);
-        const distSq = nx * nx + ny * ny;
-        // Center pixels get weight ~1.4, outer edge background pixels get ~0.4
-        SPATIAL_WEIGHTS[y * NORM_W + x] = Math.max(0.35, 1.4 - 0.65 * distSq);
-      }
-    }
-
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v2 feature format)
+    // 2. IndexedDB Sample Persistence (v3)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v2';
+    const DB_NAME = 'MCJDanceHelperDB_v3';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -647,7 +646,8 @@
           name: item.name,
           char: item.char,
           dir: item.dir,
-          features: Array.from(item.features)
+          rgb: Array.from(item.rgb),
+          lum: Array.from(item.lum)
         });
       }
       return new Promise((res) => { tx.oncomplete = res; });
@@ -665,7 +665,8 @@
             name: r.name,
             char: r.char,
             dir: r.dir,
-            features: new Float32Array(r.features)
+            rgb: new Float32Array(r.rgb),
+            lum: new Float32Array(r.lum)
           })));
         };
       });
@@ -679,58 +680,70 @@
     }
 
     // ==========================================
-    // 3. Center-Weighted RGB + Edge Feature Extraction
+    // 3. Robust Grid Color + Pose Luminance Extraction
     // ==========================================
     function extractFeaturesFromImage(imgElement) {
-      procCtx.clearRect(0, 0, NORM_W, NORM_H);
-      procCtx.drawImage(imgElement, 0, 0, NORM_W, NORM_H);
+      procCtx.clearRect(0, 0, GRID_W, GRID_H);
+      procCtx.drawImage(imgElement, 0, 0, GRID_W, GRID_H);
       return extractFeaturesFromContext(procCtx);
     }
 
     function extractFeaturesFromContext(context) {
-      const imgData = context.getImageData(0, 0, NORM_W, NORM_H).data;
-      const numPixels = NORM_W * NORM_H;
-      // 3 color channels + 1 edge/gradient magnitude channel = 4 channels per pixel
-      const vec = new Float32Array(numPixels * 4);
-      const gray = new Float32Array(numPixels);
+      const imgData = context.getImageData(0, 0, GRID_W, GRID_H).data;
+      const n = GRID_W * GRID_H;
+      const rgb = new Float32Array(n * 3);
+      const lum = new Float32Array(n);
 
-      let sum = 0;
-      for (let p = 0; p < numPixels; p++) {
-        const i = p * 4;
-        const w = SPATIAL_WEIGHTS[p];
-        const r = (imgData[i] / 255) * w;
-        const g = (imgData[i + 1] / 255) * w;
-        const b = (imgData[i + 2] / 255) * w;
-        vec[p * 4] = r;
-        vec[p * 4 + 1] = g;
-        vec[p * 4 + 2] = b;
-        gray[p] = 0.299 * (imgData[i] / 255) + 0.587 * (imgData[i + 1] / 255) + 0.114 * (imgData[i + 2] / 255);
-        sum += r + g + b;
+      let lumSum = 0;
+      for (let i = 0; i < n; i++) {
+        const r = imgData[i * 4] / 255;
+        const g = imgData[i * 4 + 1] / 255;
+        const b = imgData[i * 4 + 2] / 255;
+        rgb[i * 3] = r;
+        rgb[i * 3 + 1] = g;
+        rgb[i * 3 + 2] = b;
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        lum[i] = l;
+        lumSum += l;
       }
 
-      // Compute edge gradient magnitude for silhouette matching
-      for (let y = 0; y < NORM_H; y++) {
-        for (let x = 0; x < NORM_W; x++) {
-          const p = y * NORM_W + x;
-          const gx = (x < NORM_W - 1 ? gray[p + 1] : gray[p]) - (x > 0 ? gray[p - 1] : gray[p]);
-          const gy = (y < NORM_H - 1 ? gray[p + NORM_W] : gray[p]) - (y > 0 ? gray[p - NORM_W] : gray[p]);
-          const edge = Math.sqrt(gx * gx + gy * gy) * SPATIAL_WEIGHTS[p] * 1.5;
-          vec[p * 4 + 3] = edge;
-          sum += edge;
-        }
+      // Normalize luminance around mean so lighting variations don't crush pose similarity
+      const lumMean = lumSum / n;
+      let lumNorm = 0;
+      for (let i = 0; i < n; i++) {
+        lum[i] -= lumMean;
+        lumNorm += lum[i] * lum[i];
+      }
+      lumNorm = Math.sqrt(lumNorm) || 1;
+      for (let i = 0; i < n; i++) {
+        lum[i] /= lumNorm;
       }
 
-      const mean = sum / vec.length;
-      let norm = 0;
-      for (let i = 0; i < vec.length; i++) {
-        vec[i] -= mean;
-        norm += vec[i] * vec[i];
+      return { rgb, lum };
+    }
+
+    function computeSimilarity(a, b) {
+      const n = GRID_W * GRID_H;
+      // 1. Color channel proximity (0..1)
+      let colorSimSum = 0;
+      for (let i = 0; i < n; i++) {
+        const dr = a.rgb[i * 3] - b.rgb[i * 3];
+        const dg = a.rgb[i * 3 + 1] - b.rgb[i * 3 + 1];
+        const db = a.rgb[i * 3 + 2] - b.rgb[i * 3 + 2];
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db) / Math.sqrt(3);
+        colorSimSum += Math.max(0, 1 - dist);
       }
-      norm = Math.sqrt(norm) || 1;
-      for (let i = 0; i < vec.length; i++) {
-        vec[i] /= norm;
+      const colorScore = colorSimSum / n;
+
+      // 2. Normalized luminance / pose correlation (-1..1 mapped to 0..1)
+      let dot = 0;
+      for (let i = 0; i < n; i++) {
+        dot += a.lum[i] * b.lum[i];
       }
-      return vec;
+      const poseScore = Math.max(0, Math.min(1, (dot + 1) * 0.5));
+
+      // Blend color and pose structure (0..100%)
+      return (colorScore * 0.55 + poseScore * 0.45) * 100;
     }
 
     function parseSampleFilename(filename) {
@@ -770,8 +783,8 @@
         });
 
         if (img) {
-          const features = extractFeaturesFromImage(img);
-          loaded.push({ ...meta, features });
+          const feat = extractFeaturesFromImage(img);
+          loaded.push({ ...meta, ...feat });
           URL.revokeObjectURL(img.src);
         }
       }
@@ -818,7 +831,8 @@
             image.src = `./samples/${fname}`;
           });
           if (img) {
-            fetched.push({ ...meta, features: extractFeaturesFromImage(img) });
+            const feat = extractFeaturesFromImage(img);
+            fetched.push({ ...meta, ...feat });
           }
         } catch (_) {}
       }
@@ -831,8 +845,47 @@
     }
 
     // ==========================================
-    // 4. Screen Capture & Test Image Loader
+    // 4. Auto Stage ROI Lock & Screen/Image Capture
     // ==========================================
+    function getActiveSourceSize() {
+      if (sourceMode === 'video' && video.readyState >= 2) {
+        return { src: video, w: video.videoWidth, h: video.videoHeight };
+      }
+      if (sourceMode === 'image' && testImage) {
+        return { src: testImage, w: testImage.width, h: testImage.height };
+      }
+      return null;
+    }
+
+    // One-click automatic lock onto the main MCJ dancer position on stage
+    function autoLockStageROI() {
+      const info = getActiveSourceSize();
+      if (!info || info.w === 0 || info.h === 0) {
+        alert('請先「選擇遊戲視窗」或「載入測試截圖」，然後再按自動框定舞台！');
+        return;
+      }
+
+      // Main MCJ character sits on upper-center red carpet stage (~39%..61% X, ~17%..39% Y)
+      const roiW = Math.round(info.w * 0.22);
+      const roiH = Math.round(roiW * 1.12);
+      const roiX = Math.round(info.w * 0.5 - roiW / 2);
+      const roiY = Math.round(info.h * 0.175);
+
+      roi = {
+        x: Math.max(0, roiX),
+        y: Math.max(0, roiY),
+        w: Math.min(info.w - Math.max(0, roiX), roiW),
+        h: Math.min(info.h - Math.max(0, roiY), roiH)
+      };
+
+      updateRoiInfo();
+      if (sourceMode === 'image') {
+        runDetectionStep(true);
+      }
+    }
+
+    document.getElementById('autoLockBtn').addEventListener('click', autoLockStageROI);
+
     document.getElementById('shareBtn').addEventListener('click', async () => {
       try {
         if (stream) {
@@ -864,7 +917,6 @@
       }
     });
 
-    // Load Static Test Screenshot
     document.getElementById('testImageInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -884,7 +936,6 @@
         document.getElementById('modeLabel').textContent = '截圖測試匹配結果';
         document.getElementById('fpsInfo').textContent = `偵測狀態：靜態截圖測試模式 (${img.width}×${img.height})`;
 
-        // Keep existing ROI if within bounds, otherwise reset
         if (roi && (roi.x + roi.w > img.width || roi.y + roi.h > img.height)) {
           roi = null;
           updateRoiInfo();
@@ -950,7 +1001,6 @@
         roi = null;
       }
       updateRoiInfo();
-      // Immediately evaluate if in static screenshot test mode
       if (sourceMode === 'image') {
         runDetectionStep(true);
       }
@@ -965,7 +1015,7 @@
     function updateRoiInfo() {
       const el = document.getElementById('roiInfo');
       if (roi && roi.w > 0 && roi.h > 0) {
-        el.textContent = `已鎖定範圍：(${roi.x}, ${roi.y}) 尺寸 ${roi.w}×${roi.h}`;
+        el.textContent = `已鎖定舞台框：(${roi.x}, ${roi.y}) 尺寸 ${roi.w}×${roi.h}`;
         el.style.color = '#34d399';
       } else {
         el.textContent = '目前框選範圍：未設定（預設全畫面）';
@@ -978,26 +1028,13 @@
       renderLoopStarted = true;
 
       function render() {
-        let activeSource = null;
-        let srcW = 0;
-        let srcH = 0;
-
-        if (sourceMode === 'video' && video.readyState >= 2) {
-          activeSource = video;
-          srcW = video.videoWidth;
-          srcH = video.videoHeight;
-        } else if (sourceMode === 'image' && testImage) {
-          activeSource = testImage;
-          srcW = testImage.width;
-          srcH = testImage.height;
-        }
-
-        if (activeSource && srcW > 0 && srcH > 0) {
-          if (gameCanvas.width !== srcW || gameCanvas.height !== srcH) {
-            gameCanvas.width = srcW;
-            gameCanvas.height = srcH;
+        const active = getActiveSourceSize();
+        if (active && active.w > 0 && active.h > 0) {
+          if (gameCanvas.width !== active.w || gameCanvas.height !== active.h) {
+            gameCanvas.width = active.w;
+            gameCanvas.height = active.h;
           }
-          ctx.drawImage(activeSource, 0, 0, gameCanvas.width, gameCanvas.height);
+          ctx.drawImage(active.src, 0, 0, gameCanvas.width, gameCanvas.height);
 
           if (roi && roi.w > 0 && roi.h > 0) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
@@ -1006,9 +1043,17 @@
             ctx.fillRect(0, roi.y, roi.x, roi.h);
             ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
 
+            const lineW = Math.max(3, Math.round(gameCanvas.width / 350));
             ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = Math.max(3, Math.round(gameCanvas.width / 350));
+            ctx.lineWidth = lineW;
             ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+
+            // Label tag on ROI box
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 110, 22);
+            ctx.fillStyle = '#042f2e';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillText('MCJ 偵測區', roi.x + 8, Math.max(15, roi.y - 6));
           }
         }
 
@@ -1020,7 +1065,7 @@
     }
 
     // ==========================================
-    // 5. Core Detection & Calibration Engine
+    // 5. Detection & Calibration Engine
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -1041,31 +1086,18 @@
 
     function runDetectionStep(isManualTest = false) {
       if (templates.length === 0) return;
-
-      let activeSource = null;
-      let fullW = 0;
-      let fullH = 0;
-
-      if (sourceMode === 'video' && video.readyState >= 2) {
-        activeSource = video;
-        fullW = video.videoWidth;
-        fullH = video.videoHeight;
-      } else if (sourceMode === 'image' && testImage) {
-        activeSource = testImage;
-        fullW = testImage.width;
-        fullH = testImage.height;
-      }
-
-      if (!activeSource) return;
+      const active = getActiveSourceSize();
+      if (!active) return;
 
       const sx = roi ? roi.x : 0;
       const sy = roi ? roi.y : 0;
-      const sw = roi ? roi.w : fullW;
-      const sh = roi ? roi.h : fullH;
+      const sw = roi ? roi.w : active.w;
+      const sh = roi ? roi.h : active.h;
       if (sw < 10 || sh < 10) return;
 
-      procCtx.drawImage(activeSource, sx, sy, sw, sh, 0, 0, NORM_W, NORM_H);
-      const currentVec = extractFeaturesFromContext(procCtx);
+      procCtx.clearRect(0, 0, GRID_W, GRID_H);
+      procCtx.drawImage(active.src, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
+      const currentFeat = extractFeaturesFromContext(procCtx);
 
       const bestByDir = {
         U: { score: 0, name: '-' },
@@ -1075,12 +1107,7 @@
       };
 
       for (const tpl of templates) {
-        let dot = 0;
-        const tVec = tpl.features;
-        for (let i = 0; i < currentVec.length; i++) {
-          dot += currentVec[i] * tVec[i];
-        }
-        const pct = Math.max(0, Math.min(100, dot * 100));
+        const pct = computeSimilarity(currentFeat, tpl);
         if (pct > bestByDir[tpl.dir].score) {
           bestByDir[tpl.dir] = { score: pct, name: tpl.name };
         }
@@ -1091,7 +1118,6 @@
         document.getElementById(`best${d}`).textContent = bestByDir[d].name;
       });
 
-      // Rank directions to calculate lead margin
       const ranked = ['U', 'D', 'L', 'R']
         .map(d => ({ dir: d, score: bestByDir[d].score, name: bestByDir[d].name }))
         .sort((a, b) => b.score - a.score);
@@ -1102,7 +1128,7 @@
 
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
-      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 52;
       const reqMargin = parseFloat(document.getElementById('marginInput').value) || 0;
 
       const liveDirEl = document.getElementById('liveDir');
@@ -1334,7 +1360,6 @@
       if (sourceMode === 'video') restartDetectionLoop();
     });
 
-    // Re-evaluate static test screenshot immediately when user adjusts sensitivity settings
     ['thresholdInput', 'marginInput'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => {
         if (sourceMode === 'image') runDetectionStep(true);
@@ -1359,3 +1384,4 @@
   </script>
 </body>
 </html>
+```[cite: 1, 22, 28, 34, 35, 36, 37, 38]
