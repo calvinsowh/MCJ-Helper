@@ -68,19 +68,23 @@
       align-items: center;
     }
 
-    button, .file-btn {
+    button, .file-btn, select {
       background: #1e293b;
       color: var(--text-main);
       border: 1px solid #334155;
-      padding: 8px 13px;
+      padding: 8px 12px;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       transition: all 0.15s ease;
+    }
+
+    select {
+      padding: 7px 8px;
     }
 
     button:hover, .file-btn:hover {
@@ -105,6 +109,16 @@
 
     button.auto-btn:hover {
       background: rgba(245, 158, 11, 0.3);
+    }
+
+    button.crop-btn {
+      background: rgba(168, 85, 247, 0.2);
+      border-color: #a855f7;
+      color: #e9d5ff;
+    }
+
+    button.crop-btn:hover {
+      background: rgba(168, 85, 247, 0.35);
     }
 
     button.secondary-blue, .file-btn.secondary-blue {
@@ -167,6 +181,26 @@
     .card-header h2 {
       font-size: 1rem;
       color: #e2e8f0;
+    }
+
+    .toolbar-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .sample-maker-bar {
+      background: #0d1524;
+      border: 1px solid #28354f;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.82rem;
     }
 
     .canvas-container {
@@ -435,7 +469,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>自動公仔邊界置中對齊、消除不同 Cap 圖尺寸與位移誤差、同色系角色鎖定及防重複序列</p>
+      <p>支援一鍵下載跟框裁切樣本圖、同框直接特徵比對、同色系角色鎖定及防重複序列</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -455,7 +489,7 @@
     <section class="card">
       <div class="card-header">
         <h2>1. 畫面來源與舞台框選</h2>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <div class="toolbar-row">
           <button class="primary" id="shareBtn">🖥️ 選擇遊戲視窗</button>
           <label class="file-btn secondary-blue" title="匯入遊戲截圖測試辨識準確率與校正門檻">
             🖼️ 載入測試截圖
@@ -466,9 +500,27 @@
         </div>
       </div>
 
+      <div class="sample-maker-bar">
+        <span style="color: #cbd5e1;">📥 建立同框樣本：</span>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <select id="cropCharSelect">
+            <option value="B">B 藍貓</option>
+            <option value="P">P 粉狗</option>
+            <option value="Y">Y 黃角</option>
+          </select>
+          <select id="cropDirSelect">
+            <option value="U">U 上</option>
+            <option value="D">D 下</option>
+            <option value="L">L 左</option>
+            <option value="R">R 右</option>
+          </select>
+          <button class="crop-btn" id="downloadCropBtn" title="將目前綠框範圍原比例裁切下載為樣本圖">✂️ 下載跟框裁切圖</button>
+        </div>
+      </div>
+
       <div class="canvas-container" id="canvasContainer">
         <div class="placeholder-text" id="placeholderText">
-          1. 確認右上角已載入 25+ 張動作樣本<br />
+          1. 確認右上角已載入動作樣本（或用上方「✂️ 下載跟框裁切圖」建立同框樣本）<br />
           2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
           3. 點擊「<strong>🎯 自動框定舞台</strong>」或<strong>按住滑鼠左鍵拖曳</strong>框選公仔
         </div>
@@ -496,7 +548,7 @@
         </div>
         <div class="setting-item">
           <label for="marginInput">領先第2名差距 (%)</label>
-          <input type="number" id="marginInput" value="3.5" min="0" max="40" step="0.5" />
+          <input type="number" id="marginInput" value="2.0" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合結束超時 (秒)</label>
@@ -569,8 +621,8 @@
 
   <!-- Hidden elements -->
   <video id="sourceVideo" autoplay playsinline muted style="display: none;"></video>
-  <canvas id="scanCanvas" width="96" height="88" style="display: none;"></canvas>
-  <canvas id="normCanvas" width="44" height="44" style="display: none;"></canvas>
+  <canvas id="procCanvas" width="48" height="44" style="display: none;"></canvas>
+  <canvas id="exportCropCanvas" style="display: none;"></canvas>
   <canvas id="pipCanvas" width="420" height="160" style="display: none;"></canvas>
   <video id="pipVideo" autoplay muted playsinline style="display: none;"></video>
 
@@ -578,9 +630,8 @@
     // ==========================================
     // 1. Constants & State
     // ==========================================
-    const SCAN_W = 96;
-    const SCAN_H = 88;
-    const NORM_SIZE = 44; // Normalized square bounding box for character silhouette
+    const GRID_W = 48;
+    const GRID_H = 44;
     const MAX_COMBO = 6;
 
     const DIR_MAP = {
@@ -622,15 +673,15 @@
     const video = document.getElementById('sourceVideo');
     const gameCanvas = document.getElementById('gameCanvas');
     const ctx = gameCanvas.getContext('2d');
-    const scanCanvas = document.getElementById('scanCanvas');
-    const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-    const normCanvas = document.getElementById('normCanvas');
-    const normCtx = normCanvas.getContext('2d', { willReadFrequently: true });
+    const procCanvas = document.getElementById('procCanvas');
+    const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+    const exportCropCanvas = document.getElementById('exportCropCanvas');
+    const exportCropCtx = exportCropCanvas.getContext('2d');
 
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v8 Auto-Centered BBox)
+    // 2. IndexedDB Sample Persistence (v9 ROI-Aligned)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v8';
+    const DB_NAME = 'MCJDanceHelperDB_v9';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -656,9 +707,7 @@
           name: item.name,
           char: item.char,
           dir: item.dir,
-          normMask: Array.from(item.normMask),
-          normEdge: Array.from(item.normEdge),
-          aspect: item.aspect
+          fgVec: Array.from(item.fgVec)
         });
       }
       return new Promise((res) => { tx.oncomplete = res; });
@@ -676,9 +725,7 @@
             name: r.name,
             char: r.char,
             dir: r.dir,
-            normMask: new Float32Array(r.normMask),
-            normEdge: new Float32Array(r.normEdge),
-            aspect: r.aspect || 1.0
+            fgVec: new Float32Array(r.fgVec)
           })));
         };
       });
@@ -692,170 +739,126 @@
     }
 
     // ==========================================
-    // 3. Auto-Centered Character Bounding Box & Shift-Invariant Matching
+    // 3. Direct ROI-Aligned Feature Extraction
     // ==========================================
     function isStaticBackgroundPixel(R, G, B) {
-      // Olive-green upper wall background
-      if (G > R + 10 && G > B + 42 && R > 100 && B < 140) return true;
-      // Red carpet stage floor
-      if (R > 135 && R > G * 1.7 && R > B * 1.7) return true;
-      // Dark stage border strip
-      if (R < 45 && G < 45 && B < 45) return true;
+      if (G > R + 12 && G > B + 45 && R > 105 && B < 135) return true;
+      if (R > 140 && R > G * 1.75 && R > B * 1.75) return true;
+      if (R < 42 && G < 42 && B < 42) return true;
       return false;
     }
 
-    function extractNormalizedCharacterFromSource(src, sx, sy, sw, sh, isTemplate = false) {
-      scanCtx.clearRect(0, 0, SCAN_W, SCAN_H);
-      scanCtx.drawImage(src, sx, sy, sw, sh, 0, 0, SCAN_W, SCAN_H);
-      const raw = scanCtx.getImageData(0, 0, SCAN_W, SCAN_H).data;
+    function extractFeaturesFromImage(imgElement) {
+      procCtx.clearRect(0, 0, GRID_W, GRID_H);
+      procCtx.drawImage(imgElement, 0, 0, GRID_W, GRID_H);
+      return extractFeaturesFromContext(procCtx);
+    }
+
+    function extractFeaturesFromContext(context) {
+      const raw = context.getImageData(0, 0, GRID_W, GRID_H).data;
+      const n = GRID_W * GRID_H;
 
       let redCarpetPixels = 0;
       let bottomChecked = 0;
+
       let blueVotes = 0;
       let pinkVotes = 0;
       let yellowVotes = 0;
 
-      // Step 1: Find tight bounding box of the dancer in the middle area (ignore side umbrellas)
-      let minX = SCAN_W, maxX = 0, minY = SCAN_H, maxY = 0;
-      let fgCount = 0;
+      const fgMask = new Float32Array(n);
+      const lum = new Float32Array(n);
+      const colorR = new Float32Array(n);
+      const colorG = new Float32Array(n);
+      const colorB = new Float32Array(n);
 
-      const xStart = isTemplate ? 4 : 12;
-      const xEnd = isTemplate ? (SCAN_W - 4) : (SCAN_W - 12);
-      const yStart = isTemplate ? 2 : 4;
-      const yEnd = isTemplate ? (SCAN_H - 2) : (SCAN_H - 12);
-
-      for (let y = 0; y < SCAN_H; y++) {
-        for (let x = 0; x < SCAN_W; x++) {
-          const i = y * SCAN_W + x;
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          const i = y * GRID_W + x;
           const R = raw[i * 4];
           const G = raw[i * 4 + 1];
           const B = raw[i * 4 + 2];
 
-          if (y >= Math.floor(SCAN_H * 0.80) && y <= Math.floor(SCAN_H * 0.95)) {
+          if (y >= 35 && y <= 41) {
             bottomChecked++;
             if (R > 125 && R > G * 1.55 && R > B * 1.55) {
               redCarpetPixels++;
             }
           }
 
-          if (x >= xStart && x < xEnd && y >= yStart && y < yEnd) {
-            if (B > 165 && G > 135 && R < 115) blueVotes++;
-            else if (R > 180 && B > 160 && G < 175 && (R - G) > 30) pinkVotes++;
-            else if (R > 185 && G > 125 && B < 95 && (R - B) > 105) yellowVotes++;
-
-            if (!isStaticBackgroundPixel(R, G, B)) {
-              fgCount++;
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
+          if (y >= 4 && y <= 33 && x >= 7 && x <= 40) {
+            if (B > 165 && G > 135 && R < 115) {
+              blueVotes++;
+            } else if (R > 180 && B > 160 && G < 175 && (R - G) > 30) {
+              pinkVotes++;
+            } else if (R > 185 && G > 125 && B < 95 && (R - B) > 105) {
+              yellowVotes++;
             }
           }
+
+          const isBg = isStaticBackgroundPixel(R, G, B);
+          const edgeWeight = (x < 5 || x > 42) ? 0.35 : 1.0;
+          fgMask[i] = isBg ? 0.0 : edgeWeight;
+
+          lum[i] = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+          colorR[i] = R / 255;
+          colorG[i] = G / 255;
+          colorB[i] = B / 255;
         }
       }
 
       const redCarpetRatio = bottomChecked > 0 ? (redCarpetPixels / bottomChecked) : 0;
       const maxColorVotes = Math.max(blueVotes, pinkVotes, yellowVotes);
       let detectedChar = null;
-      if (maxColorVotes >= 35) {
+      if (maxColorVotes >= 10) {
         if (blueVotes === maxColorVotes) detectedChar = 'B';
         else if (pinkVotes === maxColorVotes) detectedChar = 'P';
         else if (yellowVotes === maxColorVotes) detectedChar = 'Y';
       }
 
-      // Fallback bounding box if foreground detection is sparse
-      if (fgCount < 40 || maxX <= minX || maxY <= minY) {
-        minX = xStart; maxX = xEnd - 1;
-        minY = yStart; maxY = yEnd - 1;
-      }
+      const fgVec = new Float32Array(n * 4);
+      let sum = 0;
 
-      // Add small 2px padding around tight character bounding box
-      minX = Math.max(0, minX - 2);
-      minY = Math.max(0, minY - 2);
-      maxX = Math.min(SCAN_W - 1, maxX + 2);
-      maxY = Math.min(SCAN_H - 1, maxY + 2);
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          const i = y * GRID_W + x;
+          const m = fgMask[i];
 
-      const boxW = Math.max(8, maxX - minX + 1);
-      const boxH = Math.max(8, maxY - minY + 1);
-      const aspect = boxW / boxH; // Wide when arms stretch L/R, compact when crouching D!
+          const gx = (x < GRID_W - 1 ? lum[i + 1] : lum[i]) - (x > 0 ? lum[i - 1] : lum[i]);
+          const gy = (y < GRID_H - 1 ? lum[i + GRID_W] : lum[i]) - (y > 0 ? lum[i - GRID_W] : lum[i]);
+          const edge = Math.sqrt(gx * gx + gy * gy) * (m > 0 ? 1.8 : 0.25);
 
-      // Step 2: Resample the tight character bounding box into uniform 44x44 normalized grid
-      normCtx.clearRect(0, 0, NORM_SIZE, NORM_SIZE);
-      normCtx.drawImage(scanCanvas, minX, minY, boxW, boxH, 0, 0, NORM_SIZE, NORM_SIZE);
-      const nData = normCtx.getImageData(0, 0, NORM_SIZE, NORM_SIZE).data;
+          const c1 = m * (colorR[i] - colorG[i]);
+          const c2 = m * (colorB[i] - lum[i]);
 
-      const totalPixels = NORM_SIZE * NORM_SIZE;
-      const normMask = new Float32Array(totalPixels);
-      const lum = new Float32Array(totalPixels);
+          fgVec[i * 4] = m * 1.4;
+          fgVec[i * 4 + 1] = edge;
+          fgVec[i * 4 + 2] = c1;
+          fgVec[i * 4 + 3] = c2;
 
-      for (let i = 0; i < totalPixels; i++) {
-        const R = nData[i * 4];
-        const G = nData[i * 4 + 1];
-        const B = nData[i * 4 + 2];
-        normMask[i] = isStaticBackgroundPixel(R, G, B) ? -0.5 : 1.0;
-        lum[i] = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
-      }
-
-      const normEdge = new Float32Array(totalPixels);
-      for (let y = 0; y < NORM_SIZE; y++) {
-        for (let x = 0; x < NORM_SIZE; x++) {
-          const i = y * NORM_SIZE + x;
-          const gx = (x < NORM_SIZE - 1 ? lum[i + 1] : lum[i]) - (x > 0 ? lum[i - 1] : lum[i]);
-          const gy = (y < NORM_SIZE - 1 ? lum[i + NORM_SIZE] : lum[i]) - (y > 0 ? lum[i - NORM_SIZE] : lum[i]);
-          normEdge[i] = Math.sqrt(gx * gx + gy * gy);
+          sum += fgVec[i * 4] + fgVec[i * 4 + 1] + fgVec[i * 4 + 2] + fgVec[i * 4 + 3];
         }
       }
 
-      return { normMask, normEdge, aspect, redCarpetRatio, detectedChar, maxColorVotes };
+      const mean = sum / fgVec.length;
+      let norm = 0;
+      for (let i = 0; i < fgVec.length; i++) {
+        fgVec[i] -= mean;
+        norm += fgVec[i] * fgVec[i];
+      }
+      norm = Math.sqrt(norm) || 1;
+      for (let i = 0; i < fgVec.length; i++) {
+        fgVec[i] /= norm;
+      }
+
+      return { fgVec, redCarpetRatio, detectedChar, maxColorVotes };
     }
 
-    // Shift-tolerant similarity across (-2..+2 px) offsets on normalized character box
-    function computeShiftInvariantSimilarity(curr, tpl) {
-      let bestScore = 0;
-      const shifts = [-2, 0, 2];
-
-      for (const dy of shifts) {
-        for (const dx of shifts) {
-          let dotMask = 0, normA = 0, normB = 0;
-          let dotEdge = 0, edgeA = 0, edgeB = 0;
-
-          for (let y = 2; y < NORM_SIZE - 2; y++) {
-            const sy = y + dy;
-            for (let x = 2; x < NORM_SIZE - 2; x++) {
-              const sx = x + dx;
-              const idxA = y * NORM_SIZE + x;
-              const idxB = sy * NORM_SIZE + sx;
-
-              const mA = curr.normMask[idxA];
-              const mB = tpl.normMask[idxB];
-              dotMask += mA * mB;
-              normA += mA * mA;
-              normB += mB * mB;
-
-              const eA = curr.normEdge[idxA];
-              const eB = tpl.normEdge[idxB];
-              dotEdge += eA * eB;
-              edgeA += eA * eA;
-              edgeB += eB * eB;
-            }
-          }
-
-          const maskSim = dotMask / (Math.sqrt(normA * normB) || 1);
-          const edgeSim = dotEdge / (Math.sqrt(edgeA * edgeB) || 1);
-
-          // Combine silhouette shape similarity + internal pose edge similarity
-          const combined = (Math.max(0, maskSim) * 0.55 + Math.max(0, edgeSim) * 0.45) * 100;
-          if (combined > bestScore) {
-            bestScore = combined;
-          }
-        }
+    function computeSimilarity(vecA, vecB) {
+      let dot = 0;
+      for (let i = 0; i < vecA.length; i++) {
+        dot += vecA[i] * vecB[i];
       }
-
-      // Aspect ratio consistency bonus (helps distinguish wide L/R stretches from tall/squat U/D poses)
-      const aspectDiff = Math.abs(curr.aspect - tpl.aspect);
-      const aspectBonus = Math.max(0, 1 - aspectDiff * 2.5) * 6.0;
-
-      return Math.min(100, bestScore + aspectBonus);
+      return Math.max(0, Math.min(100, dot * 100));
     }
 
     function parseSampleFilename(filename) {
@@ -895,13 +898,8 @@
         });
 
         if (img) {
-          const feat = extractNormalizedCharacterFromSource(img, 0, 0, img.width, img.height, true);
-          loaded.push({
-            ...meta,
-            normMask: feat.normMask,
-            normEdge: feat.normEdge,
-            aspect: feat.aspect
-          });
+          const feat = extractFeaturesFromImage(img);
+          loaded.push({ ...meta, fgVec: feat.fgVec });
           URL.revokeObjectURL(img.src);
         }
       }
@@ -913,7 +911,7 @@
         await saveSamplesToDB(templates);
         updateSampleUI();
         if (sourceMode === 'image') runDetectionStep(true);
-        alert(`成功匯入並自動置中校準 ${loaded.length} 張樣本圖！（目前總計 ${templates.length} 張）`);
+        alert(`成功匯入 ${loaded.length} 張樣本圖！（目前總計 ${templates.length} 張）`);
       } else {
         alert('未找到符合命名規則的圖片（檔名第1字需為 B/P/Y，第2字需為 U/D/L/R）。');
       }
@@ -948,13 +946,8 @@
             image.src = `./samples/${fname}`;
           });
           if (img) {
-            const feat = extractNormalizedCharacterFromSource(img, 0, 0, img.width, img.height, true);
-            fetched.push({
-              ...meta,
-              normMask: feat.normMask,
-              normEdge: feat.normEdge,
-              aspect: feat.aspect
-            });
+            const feat = extractFeaturesFromImage(img);
+            fetched.push({ ...meta, fgVec: feat.fgVec });
           }
         } catch (_) {}
       }
@@ -967,7 +960,38 @@
     }
 
     // ==========================================
-    // 4. Auto Stage ROI Lock & Screen/Image Capture
+    // 4. Download ROI-Cropped Sample Image
+    // ==========================================
+    document.getElementById('downloadCropBtn').addEventListener('click', () => {
+      const active = getActiveSourceSize();
+      if (!active || active.w === 0 || active.h === 0) {
+        alert('請先「選擇遊戲視窗」或「載入測試截圖」！');
+        return;
+      }
+
+      const sx = roi && roi.w > 0 ? roi.x : 0;
+      const sy = roi && roi.h > 0 ? roi.y : 0;
+      const sw = roi && roi.w > 0 ? roi.w : active.w;
+      const sh = roi && roi.h > 0 ? roi.h : active.h;
+
+      exportCropCanvas.width = sw;
+      exportCropCanvas.height = sh;
+      exportCropCtx.clearRect(0, 0, sw, sh);
+      exportCropCtx.drawImage(active.src, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      const charCode = document.getElementById('cropCharSelect').value;
+      const dirCode = document.getElementById('cropDirSelect').value;
+      const stamp = Date.now().toString().slice(-4);
+      const filename = `${charCode}${dirCode}_crop_${stamp}.png`;
+
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = exportCropCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // ==========================================
+    // 5. Auto Stage ROI Lock & Screen/Image Capture
     // ==========================================
     function getActiveSourceSize() {
       if (sourceMode === 'video' && video.readyState >= 2) {
@@ -1200,7 +1224,7 @@
     }
 
     // ==========================================
-    // 5. Detection Engine
+    // 6. Detection Engine
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -1230,7 +1254,9 @@
       const sh = roi ? roi.h : active.h;
       if (sw < 10 || sh < 10) return;
 
-      const currentFeat = extractNormalizedCharacterFromSource(active.src, sx, sy, sw, sh, false);
+      procCtx.clearRect(0, 0, GRID_W, GRID_H);
+      procCtx.drawImage(active.src, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
+      const currentFeat = extractFeaturesFromContext(procCtx);
 
       const liveDirEl = document.getElementById('liveDir');
       const liveMetaEl = document.getElementById('liveMeta');
@@ -1272,7 +1298,7 @@
       };
 
       for (const tpl of sameColorPool) {
-        const pct = computeShiftInvariantSimilarity(currentFeat, tpl);
+        const pct = computeSimilarity(currentFeat.fgVec, tpl.fgVec);
         if (pct > bestByDir[tpl.dir].score) {
           bestByDir[tpl.dir] = { score: pct, name: tpl.name };
         }
@@ -1294,7 +1320,7 @@
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
       const threshold = parseFloat(document.getElementById('thresholdInput').value) || 55;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 3.5;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 2.0;
 
       if (top1.score >= threshold && leadMargin >= reqMargin) {
         const info = DIR_MAP[top1.dir];
@@ -1305,7 +1331,7 @@
 
         handleValidDetection(top1.dir, top1.name, top1.score, isManualTest);
       } else {
-        liveDirEl.textContent = '無明顯動作 / 過場';
+        liveDirEl.textContent = '過場 / 未達門檻';
         liveDirEl.className = 'detected-dir';
         liveDirEl.style.color = '#94a3b8';
         liveMetaEl.textContent = `最高: ${DIR_MAP[top1.dir].text} ${top1.score.toFixed(1)}% (差 +${leadMargin.toFixed(1)}%)`;
@@ -1398,7 +1424,7 @@
     }
 
     // ==========================================
-    // 6. Combo Grid & PiP Rendering
+    // 7. Combo Grid & PiP Rendering
     // ==========================================
     function initComboGrid() {
       const grid = document.getElementById('comboGrid');
@@ -1514,7 +1540,7 @@
     });
 
     // ==========================================
-    // 7. Loop & Settings Listeners
+    // 8. Loop & Settings Listeners
     // ==========================================
     function restartDetectionLoop() {
       stopDetectionLoop();
