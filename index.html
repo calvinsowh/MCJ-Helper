@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.3)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.4)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -28,7 +28,8 @@
     body {
       background-color: var(--bg-dark);
       color: var(--text-main);
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
       padding: 10px 14px;
       display: flex;
       flex-direction: column;
@@ -36,25 +37,35 @@
       font-weight: 700;
     }
 
+    @media (max-width: 1024px) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        overflow: auto;
+      }
+    }
+
     header {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 10px;
-      padding: 9px 14px;
+      padding: 8px 14px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
     .title-group h1 {
-      font-size: 1.08rem;
+      font-size: 1.1rem;
       color: #fbbf24;
       font-weight: 900;
       display: flex;
       align-items: center;
       gap: 6px;
+      line-height: 1.2;
     }
 
     .title-group p {
@@ -62,12 +73,13 @@
       color: var(--text-muted);
       font-weight: 700;
       margin-top: 2px;
+      line-height: 1.2;
     }
 
     .header-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 7px;
+      gap: 8px;
       align-items: center;
     }
 
@@ -77,7 +89,7 @@
       border: 1px solid #233b5c;
       padding: 6px 10px;
       border-radius: 7px;
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       font-weight: 800;
       cursor: pointer;
       display: inline-flex;
@@ -177,7 +189,7 @@
 
     .main-grid {
       display: grid;
-      grid-template-columns: 1.12fr 1fr;
+      grid-template-columns: 1.15fr 1fr;
       gap: 12px;
       flex: 1;
       min-height: 0;
@@ -193,11 +205,11 @@
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 10px;
-      padding: 11px 13px;
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      justify-content: space-between;
+      min-height: 0;
     }
 
     .card-header {
@@ -207,11 +219,12 @@
       flex-wrap: wrap;
       gap: 6px;
       border-bottom: 1px solid var(--panel-border);
-      padding-bottom: 7px;
+      padding-bottom: 6px;
+      flex-shrink: 0;
     }
 
     .card-header h2 {
-      font-size: 0.94rem;
+      font-size: 0.95rem;
       color: #f1f5f9;
       font-weight: 900;
     }
@@ -227,25 +240,27 @@
       background: #091321;
       border: 1px solid #1b314d;
       border-radius: 8px;
-      padding: 7px 10px;
+      padding: 6px 10px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 6px;
-      font-size: 0.76rem;
+      font-size: 0.78rem;
       font-weight: 800;
+      flex-shrink: 0;
     }
 
+    /* Share Screen 區域自動撐滿剩餘高度，放返大 */
     .canvas-container {
       position: relative;
       width: 100%;
+      flex: 1;
+      min-height: 220px;
       background: #050a12;
       border: 2px dashed #254063;
       border-radius: 8px;
       overflow: hidden;
-      aspect-ratio: 16 / 8.5;
-      max-height: 310px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -265,53 +280,66 @@
       color: var(--text-muted);
       text-align: center;
       pointer-events: none;
-      padding: 12px;
-      font-size: 0.82rem;
+      padding: 16px;
+      font-size: 0.86rem;
       font-weight: 700;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .live-badge {
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: 10px;
+      right: 10px;
       background: rgba(7, 17, 31, 0.94);
       border: 1.5px solid #1e3a5f;
       border-radius: 8px;
-      padding: 7px 11px;
-      min-width: 195px;
+      padding: 8px 12px;
+      min-width: 205px;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
 
     .live-badge .label {
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       color: #93c5fd;
       font-weight: 800;
     }
 
     .live-badge .detected-dir {
-      font-size: 1.2rem;
+      font-size: 1.3rem;
       font-weight: 900;
       color: #fbbf24;
       margin: 1px 0;
     }
 
     .live-badge .meta {
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       color: #e2e8f0;
       font-weight: 800;
       line-height: 1.35;
     }
 
+    .status-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 6px;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+
     .settings-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 7px 8px;
+      gap: 6px 8px;
       background: #091321;
-      padding: 8px 10px;
+      padding: 7px 10px;
       border-radius: 8px;
       border: 1px solid #1b314d;
+      flex-shrink: 0;
     }
 
     @media (max-width: 640px) {
@@ -330,6 +358,7 @@
       font-size: 0.7rem;
       color: #cbd5e1;
       font-weight: 800;
+      line-height: 1.15;
     }
 
     .setting-item input {
@@ -338,7 +367,7 @@
       color: var(--text-main);
       padding: 4px 8px;
       border-radius: 6px;
-      font-size: 0.84rem;
+      font-size: 0.85rem;
       font-weight: 800;
       width: 100%;
     }
@@ -347,87 +376,91 @@
       background: #091321;
       border: 1px solid #1b314d;
       border-radius: 8px;
-      padding: 8px 12px;
+      padding: 7px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
+      flex-shrink: 0;
     }
 
     .quick-sequence {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       font-weight: 900;
       flex-wrap: wrap;
     }
 
     .quick-pill {
       background: #122640;
-      padding: 3px 9px;
+      padding: 3px 10px;
       border-radius: 6px;
       border: 1px solid #284b78;
       font-weight: 900;
     }
 
+    /* 6 個 ANS 格子自動撐滿右欄中間高度，恢復原本大尺寸 */
     .combo-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      grid-template-rows: repeat(2, 1fr);
+      gap: 10px;
+      flex: 1;
+      min-height: 180px;
     }
 
     .combo-slot {
       background: #091629;
       border: 2px solid #183254;
-      border-radius: 10px;
-      padding: 10px 8px;
+      border-radius: 12px;
+      padding: 12px 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       position: relative;
-      min-height: 86px;
       transition: all 0.2s ease;
     }
 
     .combo-slot.active {
       border-color: #3b82f6;
       background: #0d2240;
-      box-shadow: 0 0 14px rgba(59, 130, 246, 0.24);
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.24);
     }
 
     .combo-slot .slot-num {
       position: absolute;
-      top: 5px;
-      left: 8px;
-      font-size: 0.72rem;
+      top: 8px;
+      left: 10px;
+      font-size: 0.78rem;
       font-weight: 900;
       color: #93c5fd;
     }
 
     .combo-slot .slot-sample {
       position: absolute;
-      top: 5px;
-      right: 8px;
-      font-size: 0.66rem;
+      top: 8px;
+      right: 10px;
+      font-size: 0.7rem;
       font-weight: 800;
       color: #64748b;
-      max-width: 78px;
+      max-width: 85px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .combo-slot .slot-arrow {
-      font-size: 1.85rem;
+      font-size: 2.3rem;
       font-weight: 900;
-      margin: 2px 0;
+      margin: 4px 0;
     }
 
     .combo-slot .slot-conf {
-      font-size: 0.72rem;
+      font-size: 0.76rem;
       font-weight: 800;
       color: #cbd5e1;
     }
@@ -441,6 +474,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      flex-shrink: 0;
     }
 
     .timeout-info {
@@ -449,6 +483,7 @@
       font-size: 0.74rem;
       font-weight: 800;
       color: var(--text-muted);
+      line-height: 1.2;
     }
 
     .progress-bg {
@@ -470,10 +505,11 @@
       background: #091321;
       border: 1px solid #1b314d;
       border-radius: 8px;
-      padding: 8px 10px;
+      padding: 7px 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
+      flex-shrink: 0;
     }
 
     .candidate-list {
@@ -487,7 +523,7 @@
       border: 1px solid #193152;
       padding: 6px 8px;
       border-radius: 6px;
-      font-size: 0.74rem;
+      font-size: 0.76rem;
       font-weight: 800;
       display: flex;
       flex-direction: column;
@@ -502,7 +538,7 @@
     }
 
     .cand-sub {
-      font-size: 0.64rem;
+      font-size: 0.65rem;
       font-weight: 800;
       color: #64748b;
       overflow: hidden;
@@ -595,7 +631,7 @@
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; font-size: 0.74rem; font-weight: 800; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
+      <div class="status-line">
         <span id="roiInfo">目前框選範圍：未設定（預設全畫面）</span>
         <span id="stageInfo">舞台狀態：未進入遊戲舞台</span>
       </div>
@@ -647,7 +683,7 @@
       <div class="quick-bar">
         <span style="font-size: 0.8rem; font-weight: 800; color: var(--text-muted);">快速序列：</span>
         <div class="quick-sequence" id="quickSequence">
-          <span style="color: #64748b; font-size: 0.84rem; font-weight: 800;">少於最少 Combo 數暫不顯示</span>
+          <span style="color: #64748b; font-size: 0.85rem; font-weight: 800;">少於最少 Combo 數暫不顯示</span>
         </div>
       </div>
 
@@ -664,7 +700,7 @@
       </div>
 
       <div class="candidates-bar">
-        <div style="display: flex; justify-content: space-between; font-size: 0.73rem; font-weight: 800; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.73rem; font-weight: 800; color: var(--text-muted); flex-wrap: wrap; gap: 6px; line-height: 1.2;">
           <span id="charDetectLabel">同色系角色比對池（角色鎖定：未偵測）：</span>
           <span id="anchorInfo" style="color: #60a5fa;">基準線: --</span>
           <span id="leadInfo" style="color: #fbbf24;">領先差距: --%</span>
@@ -1792,7 +1828,7 @@
       const canShow = shouldDisplayCombo();
 
       if (!canShow) {
-        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.84rem; font-weight: 800;">尚未達 ${minComboReq} 個動作，暫不顯示</span>`;
+        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.85rem; font-weight: 800;">尚未達 ${minComboReq} 個動作，暫不顯示</span>`;
       } else {
         quickEl.innerHTML = currentCombo.map(item => {
           const info = DIR_MAP[item.dir];
