@@ -35,7 +35,6 @@
       gap: 16px;
     }
 
-    /* Header */
     header {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
@@ -69,7 +68,6 @@
       align-items: center;
     }
 
-    /* Buttons & Inputs */
     button, .file-btn {
       background: #1e293b;
       color: var(--text-main);
@@ -99,6 +97,16 @@
       background: var(--accent-green-hover);
     }
 
+    button.secondary-blue, .file-btn.secondary-blue {
+      background: rgba(59, 130, 246, 0.18);
+      border-color: var(--accent-blue);
+      color: #93c5fd;
+    }
+
+    button.secondary-blue:hover, .file-btn.secondary-blue:hover {
+      background: rgba(59, 130, 246, 0.3);
+    }
+
     button.danger {
       background: rgba(239, 68, 68, 0.15);
       border-color: var(--accent-red);
@@ -113,7 +121,6 @@
       display: none;
     }
 
-    /* Main Grid */
     .main-grid {
       display: grid;
       grid-template-columns: 1.15fr 1fr;
@@ -141,6 +148,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
       border-bottom: 1px solid var(--panel-border);
       padding-bottom: 10px;
     }
@@ -150,7 +159,6 @@
       color: #e2e8f0;
     }
 
-    /* Canvas Wrapper */
     .canvas-container {
       position: relative;
       width: 100%;
@@ -183,16 +191,15 @@
       line-height: 1.6;
     }
 
-    /* Live Detection Overlay Badge */
     .live-badge {
       position: absolute;
       top: 12px;
       right: 12px;
-      background: rgba(11, 17, 30, 0.88);
+      background: rgba(11, 17, 30, 0.9);
       border: 1px solid var(--accent-green);
       border-radius: 10px;
       padding: 10px 14px;
-      min-width: 150px;
+      min-width: 175px;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
@@ -203,7 +210,7 @@
     }
 
     .live-badge .detected-dir {
-      font-size: 1.5rem;
+      font-size: 1.45rem;
       font-weight: 800;
       color: #fbbf24;
       margin: 2px 0;
@@ -212,12 +219,12 @@
     .live-badge .meta {
       font-size: 0.75rem;
       color: #cbd5e1;
+      line-height: 1.4;
     }
 
-    /* Settings Bar */
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 10px;
       background: #0d1524;
       padding: 12px;
@@ -246,7 +253,6 @@
       width: 100%;
     }
 
-    /* Right Panel: Combo Sequence */
     .quick-bar {
       background: #0d1524;
       border: 1px solid var(--panel-border);
@@ -330,13 +336,11 @@
       color: var(--text-muted);
     }
 
-    /* Direction Colors */
     .dir-U { color: #38bdf8; }
     .dir-D { color: #fbbf24; }
     .dir-L { color: #f472b6; }
     .dir-R { color: #34d399; }
 
-    /* Timeout Progress Bar */
     .timeout-wrapper {
       display: flex;
       flex-direction: column;
@@ -365,7 +369,6 @@
       transition: width 0.08s linear;
     }
 
-    /* Candidate Debug Bar */
     .candidates-bar {
       background: #0d1524;
       border: 1px solid var(--panel-border);
@@ -384,12 +387,23 @@
 
     .cand-item {
       background: #162033;
-      padding: 6px 10px;
+      padding: 8px 10px;
       border-radius: 6px;
       font-size: 0.8rem;
       display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cand-top {
+      display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    .cand-sub {
+      font-size: 0.68rem;
+      color: #64748b;
     }
 
     .status-dot {
@@ -411,7 +425,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>支援視窗即時擷取、滑鼠拖曳鎖定舞台 ROI、防重複動作過濾及 2.2 秒回合自動結算</p>
+      <p>支援即時遊戲視窗擷取、靜態 Cap Screen 測試校正、中心輪廓加權比對及防重複序列</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -427,31 +441,35 @@
   </header>
 
   <div class="main-grid">
-    <!-- Left Panel: Screen Capture & ROI Selection -->
+    <!-- Left Panel -->
     <section class="card">
       <div class="card-header">
-        <h2>1. 遊戲畫面擷取與舞台框選</h2>
-        <div style="display: flex; gap: 8px;">
+        <h2>1. 畫面來源與舞台框選</h2>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="primary" id="shareBtn">🖥️ 選擇遊戲視窗</button>
+          <label class="file-btn secondary-blue" title="匯入遊戲截圖測試辨識準確率與校正門檻">
+            🖼️ 載入測試截圖
+            <input type="file" id="testImageInput" accept="image/*" />
+          </label>
           <button id="resetRoiBtn">🔄 重設框選</button>
         </div>
       </div>
 
       <div class="canvas-container" id="canvasContainer">
         <div class="placeholder-text" id="placeholderText">
-          請先點擊右上角「匯入樣本圖」載入動作樣本<br />
-          再點擊「選擇遊戲視窗」分享 Tales Runner 畫面<br />
-          載入畫面後，<strong>按住滑鼠左鍵拖曳</strong>框選跳舞公仔範圍
+          1. 確認右上角已載入 25 張動作樣本<br />
+          2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
+          3. 載入畫面後，<strong>按住滑鼠左鍵拖曳</strong>框選跳舞公仔範圍
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
-          <div class="label">即時分析最高匹配</div>
+          <div class="label" id="modeLabel">即時分析最高匹配</div>
           <div class="detected-dir" id="liveDir">等待動作...</div>
           <div class="meta" id="liveMeta">匹配度: --%</div>
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
         <span id="roiInfo">目前框選範圍：未設定（預設全畫面）</span>
         <span id="fpsInfo">偵測狀態：待機中</span>
       </div>
@@ -463,7 +481,11 @@
         </div>
         <div class="setting-item">
           <label for="thresholdInput">辨識信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="58" min="30" max="95" step="1" />
+          <input type="number" id="thresholdInput" value="58" min="20" max="95" step="1" />
+        </div>
+        <div class="setting-item">
+          <label for="marginInput">領先第2名差距 (%)</label>
+          <input type="number" id="marginInput" value="4" min="0" max="40" step="1" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合結束超時 (秒)</label>
@@ -476,11 +498,11 @@
       </div>
     </section>
 
-    <!-- Right Panel: Combo Output -->
+    <!-- Right Panel -->
     <section class="card">
       <div class="card-header">
         <h2>2. 即時動作 Combo 順序 (防重複過濾)</h2>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
           <span id="roundBadge" style="background: #1e293b; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; color: #38bdf8;">
             狀態：等待新一輪
           </span>
@@ -495,13 +517,11 @@
         </div>
       </div>
 
-      <div class="combo-grid" id="comboGrid">
-        <!-- 6 Slots generated by JS -->
-      </div>
+      <div class="combo-grid" id="comboGrid"></div>
 
       <div class="timeout-wrapper">
         <div class="timeout-info">
-          <span id="timeoutText">2.2 秒無新動作自動結算本輪</span>
+          <span id="timeoutText">無新動作自動結算本輪</span>
           <span id="timeoutCountdown">0.0s</span>
         </div>
         <div class="progress-bg">
@@ -510,18 +530,33 @@
       </div>
 
       <div class="candidates-bar">
-        <div style="font-size: 0.78rem; color: var(--text-muted);">四方向即時相似度監控：</div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted);">
+          <span>四方向即時相似度監控（校正參考）：</span>
+          <span id="leadInfo" style="color: #fbbf24;">領先差距: --%</span>
+        </div>
         <div class="candidate-list">
-          <div class="cand-item"><span class="dir-U">↑ 上 (U)</span><strong id="scoreU">0.0%</strong></div>
-          <div class="cand-item"><span class="dir-D">↓ 下 (D)</span><strong id="scoreD">0.0%</strong></div>
-          <div class="cand-item"><span class="dir-L">← 左 (L)</span><strong id="scoreL">0.0%</strong></div>
-          <div class="cand-item"><span class="dir-R">→ 右 (R)</span><strong id="scoreR">0.0%</strong></div>
+          <div class="cand-item">
+            <div class="cand-top"><span class="dir-U">↑ 上 (U)</span><strong id="scoreU">0.0%</strong></div>
+            <div class="cand-sub" id="bestU">-</div>
+          </div>
+          <div class="cand-item">
+            <div class="cand-top"><span class="dir-D">↓ 下 (D)</span><strong id="scoreD">0.0%</strong></div>
+            <div class="cand-sub" id="bestD">-</div>
+          </div>
+          <div class="cand-item">
+            <div class="cand-top"><span class="dir-L">← 左 (L)</span><strong id="scoreL">0.0%</strong></div>
+            <div class="cand-sub" id="bestL">-</div>
+          </div>
+          <div class="cand-item">
+            <div class="cand-top"><span class="dir-R">→ 右 (R)</span><strong id="scoreR">0.0%</strong></div>
+            <div class="cand-sub" id="bestR">-</div>
+          </div>
         </div>
       </div>
     </section>
   </div>
 
-  <!-- Hidden video & processing canvases -->
+  <!-- Hidden elements -->
   <video id="sourceVideo" autoplay playsinline muted style="display: none;"></video>
   <canvas id="procCanvas" width="64" height="72" style="display: none;"></canvas>
   <canvas id="pipCanvas" width="420" height="160" style="display: none;"></canvas>
@@ -542,40 +577,51 @@
       R: { label: '→ 右', arrow: '→', text: '右', class: 'dir-R', freq: 587.33 }
     };
 
-    // Known filenames for optional auto-fetch from ./samples/ on GitHub Pages
     const DEFAULT_SAMPLE_FILES = [
       'BD1.jpg', 'BD2.jpg', 'BL1.jpg', 'BR1.jpg', 'BR2.jpg', 'BU1.jpg', 'BU2.jpg',
       'PD1.jpg', 'PD2.jpg', 'PL1.jpg', 'PL2.jpg', 'PL3.jpg', 'PR.jpg', 'PR1.jpg', 'PR2.jpg', 'PU1.jpg', 'PU2.jpg',
       'YD1.jpg', 'YD2.jpg', 'YL1.jpg', 'YL2.jpg', 'YR1.jpg', 'YR2.jpg', 'YR3.jpg', 'YU1.jpg', 'YU2.jpg'
     ];
 
-    let templates = []; // { name, char, dir, features: Float32Array }
+    let templates = [];
     let stream = null;
+    let testImage = null; // Static screenshot Image object for testing
+    let sourceMode = 'none'; // 'video' | 'image' | 'none'
     let detectTimer = null;
+    let renderLoopStarted = false;
     let soundEnabled = true;
 
-    // ROI (in video native pixel coordinates)
     let roi = null; // { x, y, w, h }
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
 
-    // Combo State
-    let currentCombo = []; // [{ dir, sampleName, score, time }]
+    let currentCombo = [];
     let lastDetectedDir = null;
     let lastActionTimestamp = 0;
     let roundFinished = false;
 
-    // DOM Elements
     const video = document.getElementById('sourceVideo');
     const gameCanvas = document.getElementById('gameCanvas');
     const ctx = gameCanvas.getContext('2d');
     const procCanvas = document.getElementById('procCanvas');
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
+    // Precompute spatial center weights (character is in center, background umbrellas/carpet at edges)
+    const SPATIAL_WEIGHTS = new Float32Array(NORM_W * NORM_H);
+    for (let y = 0; y < NORM_H; y++) {
+      for (let x = 0; x < NORM_W; x++) {
+        const nx = (x - NORM_W / 2) / (NORM_W / 2);
+        const ny = (y - NORM_H / 2) / (NORM_H / 2);
+        const distSq = nx * nx + ny * ny;
+        // Center pixels get weight ~1.4, outer edge background pixels get ~0.4
+        SPATIAL_WEIGHTS[y * NORM_W + x] = Math.max(0.35, 1.4 - 0.65 * distSq);
+      }
+    }
+
     // ==========================================
-    // 2. IndexedDB Sample Persistence
+    // 2. IndexedDB Sample Persistence (v2 feature format)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB';
+    const DB_NAME = 'MCJDanceHelperDB_v2';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -633,7 +679,7 @@
     }
 
     // ==========================================
-    // 3. Feature Extraction (Normalized RGB + Center Weight)
+    // 3. Center-Weighted RGB + Edge Feature Extraction
     // ==========================================
     function extractFeaturesFromImage(imgElement) {
       procCtx.clearRect(0, 0, NORM_W, NORM_H);
@@ -643,19 +689,37 @@
 
     function extractFeaturesFromContext(context) {
       const imgData = context.getImageData(0, 0, NORM_W, NORM_H).data;
-      // Store normalized RGB values with mean-subtraction for lighting invariance
-      const vec = new Float32Array(NORM_W * NORM_H * 3);
+      const numPixels = NORM_W * NORM_H;
+      // 3 color channels + 1 edge/gradient magnitude channel = 4 channels per pixel
+      const vec = new Float32Array(numPixels * 4);
+      const gray = new Float32Array(numPixels);
+
       let sum = 0;
-      let idx = 0;
-      for (let i = 0; i < imgData.length; i += 4) {
-        const r = imgData[i] / 255;
-        const g = imgData[i + 1] / 255;
-        const b = imgData[i + 2] / 255;
-        vec[idx++] = r;
-        vec[idx++] = g;
-        vec[idx++] = b;
+      for (let p = 0; p < numPixels; p++) {
+        const i = p * 4;
+        const w = SPATIAL_WEIGHTS[p];
+        const r = (imgData[i] / 255) * w;
+        const g = (imgData[i + 1] / 255) * w;
+        const b = (imgData[i + 2] / 255) * w;
+        vec[p * 4] = r;
+        vec[p * 4 + 1] = g;
+        vec[p * 4 + 2] = b;
+        gray[p] = 0.299 * (imgData[i] / 255) + 0.587 * (imgData[i + 1] / 255) + 0.114 * (imgData[i + 2] / 255);
         sum += r + g + b;
       }
+
+      // Compute edge gradient magnitude for silhouette matching
+      for (let y = 0; y < NORM_H; y++) {
+        for (let x = 0; x < NORM_W; x++) {
+          const p = y * NORM_W + x;
+          const gx = (x < NORM_W - 1 ? gray[p + 1] : gray[p]) - (x > 0 ? gray[p - 1] : gray[p]);
+          const gy = (y < NORM_H - 1 ? gray[p + NORM_W] : gray[p]) - (y > 0 ? gray[p - NORM_W] : gray[p]);
+          const edge = Math.sqrt(gx * gx + gy * gy) * SPATIAL_WEIGHTS[p] * 1.5;
+          vec[p * 4 + 3] = edge;
+          sum += edge;
+        }
+      }
+
       const mean = sum / vec.length;
       let norm = 0;
       for (let i = 0; i < vec.length; i++) {
@@ -672,8 +736,8 @@
     function parseSampleFilename(filename) {
       const clean = filename.split('/').pop().split('\\').pop().toUpperCase();
       if (clean.length < 2) return null;
-      const charCode = clean[0]; // B, P, Y
-      const dirCode = clean[1];  // U, D, L, R
+      const charCode = clean[0];
+      const dirCode = clean[1];
       if (!['B', 'P', 'Y'].includes(charCode)) return null;
       if (!['U', 'D', 'L', 'R'].includes(dirCode)) return null;
       return { name: filename, char: charCode, dir: dirCode };
@@ -689,7 +753,6 @@
       }
     }
 
-    // Handle Manual File Upload
     document.getElementById('sampleInput').addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
       if (!files.length) return;
@@ -714,12 +777,12 @@
       }
 
       if (loaded.length > 0) {
-        // Merge by filename
         const map = new Map(templates.map(t => [t.name, t]));
         loaded.forEach(item => map.set(item.name, item));
         templates = Array.from(map.values());
         await saveSamplesToDB(templates);
         updateSampleUI();
+        if (sourceMode === 'image') runDetectionStep(true);
         alert(`成功匯入 ${loaded.length} 張樣本圖！（目前總計 ${templates.length} 張）`);
       } else {
         alert('未找到符合命名規則的圖片（檔名第1字需為 B/P/Y，第2字需為 U/D/L/R）。');
@@ -734,7 +797,6 @@
       updateSampleUI();
     });
 
-    // Auto-load from IndexedDB or ./samples/ folder on startup
     async function initSamples() {
       const cached = await loadSamplesFromDB();
       if (cached.length > 0) {
@@ -743,7 +805,6 @@
         return;
       }
 
-      // Try fetching from ./samples/ directory if hosted on GitHub Pages
       const fetched = [];
       for (const fname of DEFAULT_SAMPLE_FILES) {
         const meta = parseSampleFilename(fname);
@@ -770,7 +831,7 @@
     }
 
     // ==========================================
-    // 4. Screen Capture & Drag ROI Selection
+    // 4. Screen Capture & Test Image Loader
     // ==========================================
     document.getElementById('shareBtn').addEventListener('click', async () => {
       try {
@@ -784,24 +845,60 @@
         video.srcObject = stream;
         await video.play();
 
+        testImage = null;
+        sourceMode = 'video';
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
+        document.getElementById('modeLabel').textContent = '即時視窗最高匹配';
 
         stream.getVideoTracks()[0].onended = () => {
           stopDetectionLoop();
+          sourceMode = 'none';
           document.getElementById('fpsInfo').textContent = '偵測狀態：視窗分享已停止';
         };
 
-        startRenderLoop();
+        ensureRenderLoop();
         restartDetectionLoop();
       } catch (err) {
         console.error(err);
       }
     });
 
+    // Load Static Test Screenshot
+    document.getElementById('testImageInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      stopDetectionLoop();
+
+      const img = new Image();
+      img.onload = () => {
+        testImage = img;
+        sourceMode = 'image';
+        document.getElementById('placeholderText').style.display = 'none';
+        document.getElementById('liveBadge').style.display = 'block';
+        document.getElementById('modeLabel').textContent = '截圖測試匹配結果';
+        document.getElementById('fpsInfo').textContent = `偵測狀態：靜態截圖測試模式 (${img.width}×${img.height})`;
+
+        // Keep existing ROI if within bounds, otherwise reset
+        if (roi && (roi.x + roi.w > img.width || roi.y + roi.h > img.height)) {
+          roi = null;
+          updateRoiInfo();
+        }
+
+        ensureRenderLoop();
+        runDetectionStep(true);
+      };
+      img.src = URL.createObjectURL(file);
+      e.target.value = '';
+    });
+
     function getCanvasMousePos(e) {
       const rect = gameCanvas.getBoundingClientRect();
-      // Account for object-fit: contain scaling
       const videoRatio = gameCanvas.width / gameCanvas.height;
       const rectRatio = rect.width / rect.height;
 
@@ -828,7 +925,7 @@
     }
 
     gameCanvas.addEventListener('mousedown', (e) => {
-      if (!video.videoWidth) return;
+      if (sourceMode === 'none') return;
       isDragging = true;
       dragStart = getCanvasMousePos(e);
       roi = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
@@ -853,11 +950,16 @@
         roi = null;
       }
       updateRoiInfo();
+      // Immediately evaluate if in static screenshot test mode
+      if (sourceMode === 'image') {
+        runDetectionStep(true);
+      }
     });
 
     document.getElementById('resetRoiBtn').addEventListener('click', () => {
       roi = null;
       updateRoiInfo();
+      if (sourceMode === 'image') runDetectionStep(true);
     });
 
     function updateRoiInfo() {
@@ -871,16 +973,32 @@
       }
     }
 
-    function startRenderLoop() {
-      function render() {
-        if (video.readyState >= 2) {
-          if (gameCanvas.width !== video.videoWidth || gameCanvas.height !== video.videoHeight) {
-            gameCanvas.width = video.videoWidth;
-            gameCanvas.height = video.videoHeight;
-          }
-          ctx.drawImage(video, 0, 0, gameCanvas.width, gameCanvas.height);
+    function ensureRenderLoop() {
+      if (renderLoopStarted) return;
+      renderLoopStarted = true;
 
-          // Draw ROI Overlay
+      function render() {
+        let activeSource = null;
+        let srcW = 0;
+        let srcH = 0;
+
+        if (sourceMode === 'video' && video.readyState >= 2) {
+          activeSource = video;
+          srcW = video.videoWidth;
+          srcH = video.videoHeight;
+        } else if (sourceMode === 'image' && testImage) {
+          activeSource = testImage;
+          srcW = testImage.width;
+          srcH = testImage.height;
+        }
+
+        if (activeSource && srcW > 0 && srcH > 0) {
+          if (gameCanvas.width !== srcW || gameCanvas.height !== srcH) {
+            gameCanvas.width = srcW;
+            gameCanvas.height = srcH;
+          }
+          ctx.drawImage(activeSource, 0, 0, gameCanvas.width, gameCanvas.height);
+
           if (roi && roi.w > 0 && roi.h > 0) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
             ctx.fillRect(0, 0, gameCanvas.width, roi.y);
@@ -893,6 +1011,7 @@
             ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
           }
         }
+
         updateTimeoutUI();
         drawPiPCanvas();
         requestAnimationFrame(render);
@@ -901,7 +1020,7 @@
     }
 
     // ==========================================
-    // 5. Core Detection & No-Repeat Combo Engine
+    // 5. Core Detection & Calibration Engine
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -920,24 +1039,39 @@
       } catch (_) {}
     }
 
-    function runDetectionStep() {
-      if (video.readyState < 2 || templates.length === 0) return;
+    function runDetectionStep(isManualTest = false) {
+      if (templates.length === 0) return;
+
+      let activeSource = null;
+      let fullW = 0;
+      let fullH = 0;
+
+      if (sourceMode === 'video' && video.readyState >= 2) {
+        activeSource = video;
+        fullW = video.videoWidth;
+        fullH = video.videoHeight;
+      } else if (sourceMode === 'image' && testImage) {
+        activeSource = testImage;
+        fullW = testImage.width;
+        fullH = testImage.height;
+      }
+
+      if (!activeSource) return;
 
       const sx = roi ? roi.x : 0;
       const sy = roi ? roi.y : 0;
-      const sw = roi ? roi.w : video.videoWidth;
-      const sh = roi ? roi.h : video.videoHeight;
+      const sw = roi ? roi.w : fullW;
+      const sh = roi ? roi.h : fullH;
       if (sw < 10 || sh < 10) return;
 
-      procCtx.drawImage(video, sx, sy, sw, sh, 0, 0, NORM_W, NORM_H);
+      procCtx.drawImage(activeSource, sx, sy, sw, sh, 0, 0, NORM_W, NORM_H);
       const currentVec = extractFeaturesFromContext(procCtx);
 
-      // Find best score per direction
       const bestByDir = {
-        U: { score: 0, name: '' },
-        D: { score: 0, name: '' },
-        L: { score: 0, name: '' },
-        R: { score: 0, name: '' }
+        U: { score: 0, name: '-' },
+        D: { score: 0, name: '-' },
+        L: { score: 0, name: '-' },
+        R: { score: 0, name: '-' }
       };
 
       for (const tpl of templates) {
@@ -946,66 +1080,64 @@
         for (let i = 0; i < currentVec.length; i++) {
           dot += currentVec[i] * tVec[i];
         }
-        // Cosine similarity mapped to percentage (0~100%)
         const pct = Math.max(0, Math.min(100, dot * 100));
         if (pct > bestByDir[tpl.dir].score) {
           bestByDir[tpl.dir] = { score: pct, name: tpl.name };
         }
       }
 
-      // Update candidate monitor UI
       ['U', 'D', 'L', 'R'].forEach(d => {
         document.getElementById(`score${d}`).textContent = `${bestByDir[d].score.toFixed(1)}%`;
+        document.getElementById(`best${d}`).textContent = bestByDir[d].name;
       });
 
-      // Find overall winner
-      let bestDir = null;
-      let bestScore = -1;
-      let bestSample = '';
-      for (const d of ['U', 'D', 'L', 'R']) {
-        if (bestByDir[d].score > bestScore) {
-          bestScore = bestByDir[d].score;
-          bestDir = d;
-          bestSample = bestByDir[d].name;
-        }
-      }
+      // Rank directions to calculate lead margin
+      const ranked = ['U', 'D', 'L', 'R']
+        .map(d => ({ dir: d, score: bestByDir[d].score, name: bestByDir[d].name }))
+        .sort((a, b) => b.score - a.score);
+
+      const top1 = ranked[0];
+      const top2 = ranked[1];
+      const leadMargin = top1.score - top2.score;
+
+      document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
       const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 0;
+
       const liveDirEl = document.getElementById('liveDir');
       const liveMetaEl = document.getElementById('liveMeta');
 
-      if (bestDir && bestScore >= threshold) {
-        const info = DIR_MAP[bestDir];
+      if (top1.score >= threshold && leadMargin >= reqMargin) {
+        const info = DIR_MAP[top1.dir];
         liveDirEl.textContent = `${info.label}`;
         liveDirEl.className = `detected-dir ${info.class}`;
-        liveMetaEl.textContent = `${bestSample} | 匹配度: ${bestScore.toFixed(1)}%`;
+        liveDirEl.style.color = '';
+        liveMetaEl.textContent = `匹配: ${top1.name} (${top1.score.toFixed(1)}% | 領先 +${leadMargin.toFixed(1)}%)`;
 
-        handleValidDetection(bestDir, bestSample, bestScore);
+        handleValidDetection(top1.dir, top1.name, top1.score, isManualTest);
       } else {
-        liveDirEl.textContent = '待機 / 過場中';
+        liveDirEl.textContent = '未達門檻 / 過場中';
         liveDirEl.className = 'detected-dir';
         liveDirEl.style.color = '#94a3b8';
-        liveMetaEl.textContent = `最高: ${bestScore.toFixed(1)}% (低於門檻)`;
+        liveMetaEl.textContent = `最高: ${DIR_MAP[top1.dir].text} ${top1.score.toFixed(1)}% (差 +${leadMargin.toFixed(1)}%)`;
       }
     }
 
-    function handleValidDetection(dir, sampleName, score) {
+    function handleValidDetection(dir, sampleName, score, isManualTest = false) {
       const now = performance.now();
       const timeoutMs = (parseFloat(document.getElementById('timeoutInput').value) || 2.2) * 1000;
 
-      // If previous round already timed out (> 2.2s), start a fresh round!
-      if (roundFinished || (lastActionTimestamp > 0 && (now - lastActionTimestamp) > timeoutMs)) {
+      if (!isManualTest && (roundFinished || (lastActionTimestamp > 0 && (now - lastActionTimestamp) > timeoutMs))) {
         currentCombo = [];
         lastDetectedDir = null;
         roundFinished = false;
       }
 
-      // Rule: Consecutive actions NEVER repeat (e.g., Up -> Up is ignored as still holding same pose)
       if (dir === lastDetectedDir) {
         return;
       }
 
-      // Record new distinct action (max 6 per round)
       if (currentCombo.length < MAX_COMBO) {
         lastDetectedDir = dir;
         lastActionTimestamp = now;
@@ -1028,6 +1160,15 @@
       const bar = document.getElementById('timeoutBar');
       const countdown = document.getElementById('timeoutCountdown');
       const badge = document.getElementById('roundBadge');
+
+      if (sourceMode === 'image') {
+        bar.style.width = '100%';
+        bar.style.background = '#3b82f6';
+        countdown.textContent = '截圖測試中';
+        badge.textContent = `狀態：截圖測試模式 (${currentCombo.length} 個動作)`;
+        badge.style.color = '#93c5fd';
+        return;
+      }
 
       if (currentCombo.length === 0) {
         bar.style.width = '0%';
@@ -1110,7 +1251,6 @@
       }
     }
 
-    // Picture-in-Picture Floating Window
     const pipCanvas = document.getElementById('pipCanvas');
     const pipCtx = pipCanvas.getContext('2d');
     const pipVideo = document.getElementById('pipVideo');
@@ -1168,18 +1308,18 @@
         await pipVideo.play();
         await pipVideo.requestPictureInPicture();
       } catch (err) {
-        alert('你的瀏覽器不支援畫中畫懸浮窗，或請先開始遊戲畫面擷取。');
+        alert('你的瀏覽器不支援畫中畫懸浮窗，或請先載入畫面。');
       }
     });
 
     // ==========================================
-    // 7. Loop & Controls
+    // 7. Loop & Settings Listeners
     // ==========================================
     function restartDetectionLoop() {
       stopDetectionLoop();
       const sec = parseFloat(document.getElementById('intervalInput').value) || 0.15;
       const ms = Math.max(50, Math.round(sec * 1000));
-      detectTimer = setInterval(runDetectionStep, ms);
+      detectTimer = setInterval(() => runDetectionStep(false), ms);
       document.getElementById('fpsInfo').textContent = `偵測狀態：運行中 (每 ${sec} 秒掃描一次)`;
     }
 
@@ -1191,7 +1331,14 @@
     }
 
     document.getElementById('intervalInput').addEventListener('change', () => {
-      if (stream) restartDetectionLoop();
+      if (sourceMode === 'video') restartDetectionLoop();
+    });
+
+    // Re-evaluate static test screenshot immediately when user adjusts sensitivity settings
+    ['thresholdInput', 'marginInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        if (sourceMode === 'image') runDetectionStep(true);
+      });
     });
 
     document.getElementById('clearComboBtn').addEventListener('click', () => {
@@ -1207,7 +1354,6 @@
       e.target.textContent = soundEnabled ? '🔊 音效：開啟' : '🔇 音效：靜音';
     });
 
-    // Initialize
     initComboGrid();
     initSamples();
   </script>
