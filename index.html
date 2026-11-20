@@ -205,11 +205,11 @@
       position: absolute;
       top: 12px;
       right: 12px;
-      background: rgba(11, 17, 30, 0.9);
+      background: rgba(11, 17, 30, 0.92);
       border: 1px solid var(--accent-green);
       border-radius: 10px;
       padding: 10px 14px;
-      min-width: 185px;
+      min-width: 195px;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
@@ -435,7 +435,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>一鍵自動框定舞台主角、支援 Cap Screen 測試校正、局部色彩與輪廓比對及防重複序列</p>
+      <p>紅地毯舞台防誤觸閘門、同色角色自動鎖定、精準緊貼舞台框及防重複序列</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -461,28 +461,28 @@
             🖼️ 載入測試截圖
             <input type="file" id="testImageInput" accept="image/*" />
           </label>
-          <button class="auto-btn" id="autoLockBtn" title="自動套用 MCJ 大舞台中央主角偵測框">🎯 自動框定舞台</button>
+          <button class="auto-btn" id="autoLockBtn" title="自動套用緊貼 MCJ 大舞台中央主角偵測框">🎯 自動框定舞台</button>
           <button id="resetRoiBtn">🔄 重設框選</button>
         </div>
       </div>
 
       <div class="canvas-container" id="canvasContainer">
         <div class="placeholder-text" id="placeholderText">
-          1. 確認右上角已載入 25 張動作樣本<br />
+          1. 確認右上角已載入 25+ 張動作樣本<br />
           2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
           3. 點擊「<strong>🎯 自動框定舞台</strong>」或<strong>按住滑鼠左鍵拖曳</strong>框選公仔
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
-          <div class="label" id="modeLabel">即時分析最高匹配</div>
-          <div class="detected-dir" id="liveDir">等待動作...</div>
-          <div class="meta" id="liveMeta">匹配度: --%</div>
+          <div class="label" id="modeLabel">即時分析狀態</div>
+          <div class="detected-dir" id="liveDir">等待進入舞台</div>
+          <div class="meta" id="liveMeta">未偵測到紅地毯舞台</div>
         </div>
       </div>
 
       <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap; gap: 6px;">
         <span id="roiInfo">目前框選範圍：未設定（預設全畫面）</span>
-        <span id="fpsInfo">偵測狀態：待機中</span>
+        <span id="stageInfo">舞台狀態：未進入遊戲舞台</span>
       </div>
 
       <div class="settings-grid">
@@ -492,7 +492,7 @@
         </div>
         <div class="setting-item">
           <label for="thresholdInput">辨識信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="52" min="20" max="95" step="1" />
+          <input type="number" id="thresholdInput" value="58" min="20" max="95" step="1" />
         </div>
         <div class="setting-item">
           <label for="marginInput">領先第2名差距 (%)</label>
@@ -542,7 +542,7 @@
 
       <div class="candidates-bar">
         <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted);">
-          <span>四方向即時相似度監控（校正參考）：</span>
+          <span id="charDetectLabel">四方向即時相似度監控（角色鎖定：未偵測）：</span>
           <span id="leadInfo" style="color: #fbbf24;">領先差距: --%</span>
         </div>
         <div class="candidate-list">
@@ -588,6 +588,12 @@
       R: { label: '→ 右', arrow: '→', text: '右', class: 'dir-R', freq: 587.33 }
     };
 
+    const CHAR_NAMES = {
+      B: '藍色貓咪 (B)',
+      P: '粉紅狗狗 (P)',
+      Y: '黃色角色 (Y)'
+    };
+
     const DEFAULT_SAMPLE_FILES = [
       'BD1.jpg', 'BD2.jpg', 'BL1.jpg', 'BR1.jpg', 'BR2.jpg', 'BU1.jpg', 'BU2.jpg',
       'PD1.jpg', 'PD2.jpg', 'PL1.jpg', 'PL2.jpg', 'PL3.jpg', 'PR.jpg', 'PR1.jpg', 'PR2.jpg', 'PU1.jpg', 'PU2.jpg',
@@ -618,9 +624,9 @@
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v3)
+    // 2. IndexedDB Sample Persistence (v4)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v3';
+    const DB_NAME = 'MCJDanceHelperDB_v4';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -680,7 +686,7 @@
     }
 
     // ==========================================
-    // 3. Robust Grid Color + Pose Luminance Extraction
+    // 3. Stage Presence Gate, Character Color Classifier & Pose Features
     // ==========================================
     function extractFeaturesFromImage(imgElement) {
       procCtx.clearRect(0, 0, GRID_W, GRID_H);
@@ -689,25 +695,76 @@
     }
 
     function extractFeaturesFromContext(context) {
-      const imgData = context.getImageData(0, 0, GRID_W, GRID_H).data;
+      const raw = context.getImageData(0, 0, GRID_W, GRID_H).data;
       const n = GRID_W * GRID_H;
       const rgb = new Float32Array(n * 3);
       const lum = new Float32Array(n);
 
+      // 1. Check Red Carpet Stage Gate at bottom rows (y = 29..34, i.e., ~80%..95% of ROI height)
+      let redCarpetPixels = 0;
+      let bottomChecked = 0;
+
+      // 2. Count character outfit color votes in upper-middle character zone (y = 4..26, x = 5..26)
+      let blueVotes = 0;
+      let pinkVotes = 0;
+      let yellowVotes = 0;
+
       let lumSum = 0;
-      for (let i = 0; i < n; i++) {
-        const r = imgData[i * 4] / 255;
-        const g = imgData[i * 4 + 1] / 255;
-        const b = imgData[i * 4 + 2] / 255;
-        rgb[i * 3] = r;
-        rgb[i * 3 + 1] = g;
-        rgb[i * 3 + 2] = b;
-        const l = 0.299 * r + 0.587 * g + 0.114 * b;
-        lum[i] = l;
-        lumSum += l;
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          const i = y * GRID_W + x;
+          const R = raw[i * 4];
+          const G = raw[i * 4 + 1];
+          const B = raw[i * 4 + 2];
+
+          const r = R / 255;
+          const g = G / 255;
+          const b = B / 255;
+          rgb[i * 3] = r;
+          rgb[i * 3 + 1] = g;
+          rgb[i * 3 + 2] = b;
+
+          const l = 0.299 * r + 0.587 * g + 0.114 * b;
+          lum[i] = l;
+          lumSum += l;
+
+          // Red carpet check at bottom edge of ROI
+          if (y >= 29 && y <= 34) {
+            bottomChecked++;
+            if (R > 125 && R > G * 1.55 && R > B * 1.55) {
+              redCarpetPixels++;
+            }
+          }
+
+          // Character outfit color classification in central zone
+          if (y >= 3 && y <= 26 && x >= 5 && x <= 26) {
+            // Cyan / Sky Blue outfit (B)
+            if (B > 170 && G > 140 && R < 110) {
+              blueVotes++;
+            }
+            // Pink / Magenta outfit (P)
+            else if (R > 185 && B > 165 && G < 175 && (R - G) > 35) {
+              pinkVotes++;
+            }
+            // Golden Yellow / Orange outfit (Y)
+            else if (R > 190 && G > 130 && B < 95 && (R - B) > 110) {
+              yellowVotes++;
+            }
+          }
+        }
       }
 
-      // Normalize luminance around mean so lighting variations don't crush pose similarity
+      const redCarpetRatio = bottomChecked > 0 ? (redCarpetPixels / bottomChecked) : 0;
+      const maxColorVotes = Math.max(blueVotes, pinkVotes, yellowVotes);
+      let detectedChar = null;
+      // Require at least 12 distinct outfit pixels to lock character color
+      if (maxColorVotes >= 12) {
+        if (blueVotes === maxColorVotes) detectedChar = 'B';
+        else if (pinkVotes === maxColorVotes) detectedChar = 'P';
+        else if (yellowVotes === maxColorVotes) detectedChar = 'Y';
+      }
+
+      // Normalize luminance around mean for pose matching
       const lumMean = lumSum / n;
       let lumNorm = 0;
       for (let i = 0; i < n; i++) {
@@ -719,12 +776,11 @@
         lum[i] /= lumNorm;
       }
 
-      return { rgb, lum };
+      return { rgb, lum, redCarpetRatio, detectedChar, maxColorVotes };
     }
 
     function computeSimilarity(a, b) {
       const n = GRID_W * GRID_H;
-      // 1. Color channel proximity (0..1)
       let colorSimSum = 0;
       for (let i = 0; i < n; i++) {
         const dr = a.rgb[i * 3] - b.rgb[i * 3];
@@ -735,15 +791,13 @@
       }
       const colorScore = colorSimSum / n;
 
-      // 2. Normalized luminance / pose correlation (-1..1 mapped to 0..1)
       let dot = 0;
       for (let i = 0; i < n; i++) {
         dot += a.lum[i] * b.lum[i];
       }
       const poseScore = Math.max(0, Math.min(1, (dot + 1) * 0.5));
 
-      // Blend color and pose structure (0..100%)
-      return (colorScore * 0.55 + poseScore * 0.45) * 100;
+      return (colorScore * 0.5 + poseScore * 0.5) * 100;
     }
 
     function parseSampleFilename(filename) {
@@ -845,7 +899,7 @@
     }
 
     // ==========================================
-    // 4. Auto Stage ROI Lock & Screen/Image Capture
+    // 4. Auto Tight Stage ROI Lock & Screen/Image Capture
     // ==========================================
     function getActiveSourceSize() {
       if (sourceMode === 'video' && video.readyState >= 2) {
@@ -857,7 +911,7 @@
       return null;
     }
 
-    // One-click automatic lock onto the main MCJ dancer position on stage
+    // Tightly crops around the upper red-carpet dancer, excluding lower crowd & bunting
     function autoLockStageROI() {
       const info = getActiveSourceSize();
       if (!info || info.w === 0 || info.h === 0) {
@@ -865,11 +919,10 @@
         return;
       }
 
-      // Main MCJ character sits on upper-center red carpet stage (~39%..61% X, ~17%..39% Y)
-      const roiW = Math.round(info.w * 0.22);
-      const roiH = Math.round(roiW * 1.12);
+      const roiW = Math.round(info.w * 0.195);
+      const roiH = Math.round(info.h * 0.245);
       const roiX = Math.round(info.w * 0.5 - roiW / 2);
-      const roiY = Math.round(info.h * 0.175);
+      const roiY = Math.round(info.h * 0.172);
 
       roi = {
         x: Math.max(0, roiX),
@@ -902,12 +955,17 @@
         sourceMode = 'video';
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '即時視窗最高匹配';
+        document.getElementById('modeLabel').textContent = '即時視窗分析';
+
+        // Automatically apply tight stage ROI when starting screen share if none is set
+        if (!roi) {
+          autoLockStageROI();
+        }
 
         stream.getVideoTracks()[0].onended = () => {
           stopDetectionLoop();
           sourceMode = 'none';
-          document.getElementById('fpsInfo').textContent = '偵測狀態：視窗分享已停止';
+          document.getElementById('stageInfo').textContent = '舞台狀態：視窗分享已停止';
         };
 
         ensureRenderLoop();
@@ -917,6 +975,7 @@
       }
     });
 
+    // Load Static Test Screenshot -> Reset combo to show clean single-frame result
     document.getElementById('testImageInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -927,18 +986,23 @@
       }
       stopDetectionLoop();
 
+      // Clear previous test combo so each screenshot shows a clean single result
+      currentCombo = [];
+      lastDetectedDir = null;
+      lastActionTimestamp = 0;
+      roundFinished = false;
+      renderComboUI();
+
       const img = new Image();
       img.onload = () => {
         testImage = img;
         sourceMode = 'image';
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '截圖測試匹配結果';
-        document.getElementById('fpsInfo').textContent = `偵測狀態：靜態截圖測試模式 (${img.width}×${img.height})`;
+        document.getElementById('modeLabel').textContent = '截圖測試結果';
 
-        if (roi && (roi.x + roi.w > img.width || roi.y + roi.h > img.height)) {
-          roi = null;
-          updateRoiInfo();
+        if (!roi || roi.x + roi.w > img.width || roi.y + roi.h > img.height) {
+          autoLockStageROI();
         }
 
         ensureRenderLoop();
@@ -1002,6 +1066,9 @@
       }
       updateRoiInfo();
       if (sourceMode === 'image') {
+        currentCombo = [];
+        lastDetectedDir = null;
+        renderComboUI();
         runDetectionStep(true);
       }
     });
@@ -1009,7 +1076,12 @@
     document.getElementById('resetRoiBtn').addEventListener('click', () => {
       roi = null;
       updateRoiInfo();
-      if (sourceMode === 'image') runDetectionStep(true);
+      if (sourceMode === 'image') {
+        currentCombo = [];
+        lastDetectedDir = null;
+        renderComboUI();
+        runDetectionStep(true);
+      }
     });
 
     function updateRoiInfo() {
@@ -1048,7 +1120,6 @@
             ctx.lineWidth = lineW;
             ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
 
-            // Label tag on ROI box
             ctx.fillStyle = '#10b981';
             ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 110, 22);
             ctx.fillStyle = '#042f2e';
@@ -1065,7 +1136,7 @@
     }
 
     // ==========================================
-    // 5. Detection & Calibration Engine
+    // 5. Stage-Gated & Character-Locked Detection Engine
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -1099,6 +1170,42 @@
       procCtx.drawImage(active.src, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
       const currentFeat = extractFeaturesFromContext(procCtx);
 
+      const liveDirEl = document.getElementById('liveDir');
+      const liveMetaEl = document.getElementById('liveMeta');
+      const stageInfoEl = document.getElementById('stageInfo');
+      const charLabelEl = document.getElementById('charDetectLabel');
+
+      // Gate 1: Require Red Carpet Stage at bottom of ROI AND a valid MCJ character color
+      const hasRedCarpet = currentFeat.redCarpetRatio >= 0.18;
+      const hasCharacter = currentFeat.detectedChar !== null;
+
+      if (!hasRedCarpet || !hasCharacter) {
+        liveDirEl.textContent = '等待進入舞台';
+        liveDirEl.className = 'detected-dir';
+        liveDirEl.style.color = '#64748b';
+        liveMetaEl.textContent = `紅地毯: ${(currentFeat.redCarpetRatio * 100).toFixed(0)}% | 角色像素: ${currentFeat.maxColorVotes}`;
+        stageInfoEl.textContent = '舞台狀態：未偵測到 MCJ 舞台與角色（已暫停辨識）';
+        stageInfoEl.style.color = '#94a3b8';
+        charLabelEl.textContent = '四方向即時相似度監控（角色鎖定：未偵測）：';
+
+        ['U', 'D', 'L', 'R'].forEach(d => {
+          document.getElementById(`score${d}`).textContent = '0.0%';
+          document.getElementById(`best${d}`).textContent = '-';
+        });
+        document.getElementById('leadInfo').textContent = '領先差距: --%';
+        return;
+      }
+
+      // Stage & Character confirmed!
+      const charCode = currentFeat.detectedChar;
+      stageInfoEl.textContent = `舞台狀態：已鎖定舞台 (紅地毯 ${(currentFeat.redCarpetRatio * 100).toFixed(0)}%)`;
+      stageInfoEl.style.color = '#34d399';
+      charLabelEl.textContent = `四方向即時相似度監控（已鎖定：${CHAR_NAMES[charCode]}）：`;
+
+      // Filter templates strictly to the detected character color (B, P, or Y)
+      const activeTemplates = templates.filter(t => t.char === charCode);
+      const pool = activeTemplates.length > 0 ? activeTemplates : templates;
+
       const bestByDir = {
         U: { score: 0, name: '-' },
         D: { score: 0, name: '-' },
@@ -1106,7 +1213,7 @@
         R: { score: 0, name: '-' }
       };
 
-      for (const tpl of templates) {
+      for (const tpl of pool) {
         const pct = computeSimilarity(currentFeat, tpl);
         if (pct > bestByDir[tpl.dir].score) {
           bestByDir[tpl.dir] = { score: pct, name: tpl.name };
@@ -1128,11 +1235,8 @@
 
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
-      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 52;
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
       const reqMargin = parseFloat(document.getElementById('marginInput').value) || 0;
-
-      const liveDirEl = document.getElementById('liveDir');
-      const liveMetaEl = document.getElementById('liveMeta');
 
       if (top1.score >= threshold && leadMargin >= reqMargin) {
         const info = DIR_MAP[top1.dir];
@@ -1143,7 +1247,7 @@
 
         handleValidDetection(top1.dir, top1.name, top1.score, isManualTest);
       } else {
-        liveDirEl.textContent = '未達門檻 / 過場中';
+        liveDirEl.textContent = '過場 / 未達門檻';
         liveDirEl.className = 'detected-dir';
         liveDirEl.style.color = '#94a3b8';
         liveMetaEl.textContent = `最高: ${DIR_MAP[top1.dir].text} ${top1.score.toFixed(1)}% (差 +${leadMargin.toFixed(1)}%)`;
@@ -1154,7 +1258,20 @@
       const now = performance.now();
       const timeoutMs = (parseFloat(document.getElementById('timeoutInput').value) || 2.2) * 1000;
 
-      if (!isManualTest && (roundFinished || (lastActionTimestamp > 0 && (now - lastActionTimestamp) > timeoutMs))) {
+      if (isManualTest) {
+        currentCombo = [{
+          dir,
+          sampleName,
+          score,
+          elapsed: 0,
+          timestamp: now
+        }];
+        lastDetectedDir = dir;
+        renderComboUI();
+        return;
+      }
+
+      if (roundFinished || (lastActionTimestamp > 0 && (now - lastActionTimestamp) > timeoutMs)) {
         currentCombo = [];
         lastDetectedDir = null;
         roundFinished = false;
@@ -1191,7 +1308,7 @@
         bar.style.width = '100%';
         bar.style.background = '#3b82f6';
         countdown.textContent = '截圖測試中';
-        badge.textContent = `狀態：截圖測試模式 (${currentCombo.length} 個動作)`;
+        badge.textContent = '狀態：單張截圖測試';
         badge.style.color = '#93c5fd';
         return;
       }
@@ -1346,7 +1463,6 @@
       const sec = parseFloat(document.getElementById('intervalInput').value) || 0.15;
       const ms = Math.max(50, Math.round(sec * 1000));
       detectTimer = setInterval(() => runDetectionStep(false), ms);
-      document.getElementById('fpsInfo').textContent = `偵測狀態：運行中 (每 ${sec} 秒掃描一次)`;
     }
 
     function stopDetectionLoop() {
@@ -1384,4 +1500,3 @@
   </script>
 </body>
 </html>
-```[cite: 1, 22, 28, 34, 35, 36, 37, 38]
