@@ -101,6 +101,23 @@
       background: var(--accent-green-hover);
     }
 
+    button.rec-btn {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: var(--accent-red);
+      color: #fca5a5;
+    }
+
+    button.rec-btn.recording {
+      background: #ef4444;
+      color: #ffffff;
+      animation: pulseRec 1s infinite;
+    }
+
+    @keyframes pulseRec {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+
     button.auto-btn {
       background: rgba(245, 158, 11, 0.18);
       border-color: var(--accent-amber);
@@ -268,7 +285,7 @@
 
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
       gap: 10px;
       background: #0d1524;
       padding: 12px;
@@ -469,7 +486,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>支援一鍵下載跟框裁切樣本圖、同框直接特徵比對、同色系角色鎖定及防重複序列</p>
+      <p>支援一鍵錄影下載分析、最少 4 Combo 防誤觸、少於 3 Combo 不顯示及同框樣本比對</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -491,6 +508,7 @@
         <h2>1. 畫面來源與舞台框選</h2>
         <div class="toolbar-row">
           <button class="primary" id="shareBtn">🖥️ 選擇遊戲視窗</button>
+          <button class="rec-btn" id="recordBtn" title="錄製目前畫面並下載影片方便除錯分析">🎥 錄製畫面</button>
           <label class="file-btn secondary-blue" title="匯入遊戲截圖測試辨識準確率與校正門檻">
             🖼️ 載入測試截圖
             <input type="file" id="testImageInput" accept="image/*" />
@@ -522,7 +540,7 @@
         <div class="placeholder-text" id="placeholderText">
           1. 確認右上角已載入動作樣本（或用上方「✂️ 下載跟框裁切圖」建立同框樣本）<br />
           2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-          3. 點擊「<strong>🎯 自動框定舞台</strong>」或<strong>按住滑鼠左鍵拖曳</strong>框選公仔
+          3. 如需錄片分析，按「<strong>🎥 錄製畫面</strong>」開始與結束
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -543,15 +561,23 @@
           <input type="number" id="intervalInput" value="0.15" min="0.05" max="2.0" step="0.05" />
         </div>
         <div class="setting-item">
-          <label for="thresholdInput">辨識信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="55" min="10" max="95" step="1" />
+          <label for="thresholdInput">信心門檻 (%)</label>
+          <input type="number" id="thresholdInput" value="60" min="10" max="95" step="1" />
         </div>
         <div class="setting-item">
-          <label for="marginInput">領先第2名差距 (%)</label>
-          <input type="number" id="marginInput" value="2.0" min="0" max="40" step="0.5" />
+          <label for="marginInput">領先差距 (%)</label>
+          <input type="number" id="marginInput" value="6.0" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
-          <label for="timeoutInput">回合結束超時 (秒)</label>
+          <label for="minComboInput">最少 Combo 數</label>
+          <input type="number" id="minComboInput" value="4" min="1" max="6" step="1" />
+        </div>
+        <div class="setting-item">
+          <label for="hideBelowInput">少於幾多不顯示</label>
+          <input type="number" id="hideBelowInput" value="3" min="0" max="6" step="1" />
+        </div>
+        <div class="setting-item">
+          <label for="timeoutInput">回合超時 (秒)</label>
           <input type="number" id="timeoutInput" value="2.2" min="1.0" max="5.0" step="0.1" />
         </div>
         <div class="setting-item">
@@ -564,7 +590,7 @@
     <!-- Right Panel -->
     <section class="card">
       <div class="card-header">
-        <h2>2. 即時動作 Combo 順序 (防重複過濾)</h2>
+        <h2>2. 即時動作 Combo 順序 (防誤觸 / 至少4個)</h2>
         <div style="display: flex; gap: 8px; align-items: center;">
           <span id="roundBadge" style="background: #1e293b; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; color: #38bdf8;">
             狀態：等待新一輪
@@ -576,7 +602,7 @@
       <div class="quick-bar">
         <span style="font-size: 0.85rem; color: var(--text-muted);">快速序列：</span>
         <div class="quick-sequence" id="quickSequence">
-          <span style="color: #64748b; font-size: 0.9rem;">尚未偵測到動作</span>
+          <span style="color: #64748b; font-size: 0.9rem;">少於設定數量暫不顯示</span>
         </div>
       </div>
 
@@ -584,7 +610,7 @@
 
       <div class="timeout-wrapper">
         <div class="timeout-info">
-          <span id="timeoutText">無新動作自動結算本輪</span>
+          <span id="timeoutText">無新動作自動結算本輪（少於最少 Combo 數會作廢）</span>
           <span id="timeoutCountdown">0.0s</span>
         </div>
         <div class="progress-bg">
@@ -661,6 +687,11 @@
     let renderLoopStarted = false;
     let soundEnabled = true;
 
+    // Screen Recording State
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+
     let roi = null; // { x, y, w, h }
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
@@ -679,9 +710,9 @@
     const exportCropCtx = exportCropCanvas.getContext('2d');
 
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v9 ROI-Aligned)
+    // 2. IndexedDB Sample Persistence (v10)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v9';
+    const DB_NAME = 'MCJDanceHelperDB_v10';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -739,7 +770,7 @@
     }
 
     // ==========================================
-    // 3. Direct ROI-Aligned Feature Extraction
+    // 3. Feature Extraction & Matching
     // ==========================================
     function isStaticBackgroundPixel(R, G, B) {
       if (G > R + 12 && G > B + 45 && R > 105 && B < 135) return true;
@@ -960,8 +991,56 @@
     }
 
     // ==========================================
-    // 4. Download ROI-Cropped Sample Image
+    // 4. Screen Recording & ROI Crop Export
     // ==========================================
+    const recordBtn = document.getElementById('recordBtn');
+
+    recordBtn.addEventListener('click', () => {
+      if (!isRecording) {
+        if (!stream || sourceMode !== 'video') {
+          alert('請先按「選擇遊戲視窗」開始分享畫面，再按「🎥 錄製畫面」！');
+          return;
+        }
+        try {
+          recordedChunks = [];
+          const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? { mimeType: 'video/webm;codecs=vp9' }
+            : { mimeType: 'video/webm' };
+          mediaRecorder = new MediaRecorder(stream, options);
+          mediaRecorder.ondataavailable = (ev) => {
+            if (ev.data && ev.data.size > 0) recordedChunks.push(ev.data);
+          };
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.href = url;
+            a.download = `MCJ_record_${stamp}.webm`;
+            a.click();
+            URL.revokeObjectURL(url);
+          };
+          mediaRecorder.start(200);
+          isRecording = true;
+          recordBtn.classList.add('recording');
+          recordBtn.textContent = '⏹ 停止並下載錄影';
+        } catch (err) {
+          alert('無法啟動錄影：' + err.message);
+        }
+      } else {
+        stopRecordingIfActive();
+      }
+    });
+
+    function stopRecordingIfActive() {
+      if (isRecording && mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+      recordBtn.classList.remove('recording');
+      recordBtn.textContent = '🎥 錄製畫面';
+    }
+
     document.getElementById('downloadCropBtn').addEventListener('click', () => {
       const active = getActiveSourceSize();
       if (!active || active.w === 0 || active.h === 0) {
@@ -1032,6 +1111,7 @@
 
     document.getElementById('shareBtn').addEventListener('click', async () => {
       try {
+        stopRecordingIfActive();
         if (stream) {
           stream.getTracks().forEach(t => t.stop());
         }
@@ -1053,6 +1133,7 @@
         }
 
         stream.getVideoTracks()[0].onended = () => {
+          stopRecordingIfActive();
           stopDetectionLoop();
           sourceMode = 'none';
           document.getElementById('stageInfo').textContent = '舞台狀態：視窗分享已停止';
@@ -1069,6 +1150,7 @@
       const file = e.target.files[0];
       if (!file) return;
 
+      stopRecordingIfActive();
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
@@ -1224,7 +1306,7 @@
     }
 
     // ==========================================
-    // 6. Detection Engine
+    // 6. Detection Engine & Round Guard
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -1319,8 +1401,8 @@
 
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
-      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 55;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 2.0;
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 60;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 6.0;
 
       if (top1.score >= threshold && leadMargin >= reqMargin) {
         const info = DIR_MAP[top1.dir];
@@ -1384,6 +1466,7 @@
     function updateTimeoutUI() {
       const timeoutSec = parseFloat(document.getElementById('timeoutInput').value) || 2.2;
       const timeoutMs = timeoutSec * 1000;
+      const minComboReq = parseInt(document.getElementById('minComboInput').value, 10) || 4;
       const bar = document.getElementById('timeoutBar');
       const countdown = document.getElementById('timeoutCountdown');
       const badge = document.getElementById('roundBadge');
@@ -1400,31 +1483,46 @@
       if (currentCombo.length === 0) {
         bar.style.width = '0%';
         countdown.textContent = '0.0s';
-        badge.textContent = '狀態：等待新一輪';
+        badge.textContent = `狀態：等待新一輪 (需≥${minComboReq}個)`;
         badge.style.color = '#38bdf8';
         return;
       }
 
       const elapsed = performance.now() - lastActionTimestamp;
       if (elapsed >= timeoutMs) {
+        // Round timed out: if fewer than minComboReq, discard as false trigger
+        if (currentCombo.length < minComboReq) {
+          currentCombo = [];
+          lastDetectedDir = null;
+          lastActionTimestamp = 0;
+          roundFinished = false;
+          renderComboUI();
+          bar.style.width = '0%';
+          countdown.textContent = '不足已作廢';
+          badge.textContent = `狀態：不足 ${minComboReq} 個已過濾`;
+          badge.style.color = '#94a3b8';
+          return;
+        }
+
         roundFinished = true;
         bar.style.width = '100%';
         bar.style.background = '#10b981';
         countdown.textContent = '本輪已鎖定';
         badge.textContent = `狀態：本輪完成 (${currentCombo.length} 個動作)`;
         badge.style.color = '#34d399';
+        renderComboUI();
       } else {
         const pct = (elapsed / timeoutMs) * 100;
         bar.style.width = `${pct}%`;
         bar.style.background = '#f59e0b';
         countdown.textContent = `${((timeoutMs - elapsed) / 1000).toFixed(1)}s`;
-        badge.textContent = `狀態：偵測進行中 (${currentCombo.length}/${MAX_COMBO})`;
+        badge.textContent = `狀態：收集動作中 (${currentCombo.length}/${minComboReq}+)`;
         badge.style.color = '#fbbf24';
       }
     }
 
     // ==========================================
-    // 7. Combo Grid & PiP Rendering
+    // 7. Combo Grid (Debug Hide < N) & PiP Rendering
     // ==========================================
     function initComboGrid() {
       const grid = document.getElementById('comboGrid');
@@ -1443,10 +1541,21 @@
       }
     }
 
+    function shouldDisplayCombo() {
+      if (sourceMode === 'image') return currentCombo.length > 0;
+      const hideBelow = parseInt(document.getElementById('hideBelowInput').value, 10);
+      const thresholdCount = Number.isNaN(hideBelow) ? 3 : hideBelow;
+      return currentCombo.length >= thresholdCount && currentCombo.length > 0;
+    }
+
     function renderComboUI() {
       const quickEl = document.getElementById('quickSequence');
-      if (currentCombo.length === 0) {
-        quickEl.innerHTML = '<span style="color: #64748b; font-size: 0.9rem;">尚未偵測到動作</span>';
+      const hideBelow = parseInt(document.getElementById('hideBelowInput').value, 10);
+      const thresholdCount = Number.isNaN(hideBelow) ? 3 : hideBelow;
+      const canShow = shouldDisplayCombo();
+
+      if (!canShow) {
+        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.9rem;">尚未達 ${thresholdCount} 個動作，暫不顯示</span>`;
       } else {
         quickEl.innerHTML = currentCombo.map(item => {
           const info = DIR_MAP[item.dir];
@@ -1456,7 +1565,7 @@
 
       for (let i = 0; i < MAX_COMBO; i++) {
         const slot = document.getElementById(`slot-${i}`);
-        const item = currentCombo[i];
+        const item = canShow ? currentCombo[i] : null;
         if (item) {
           const info = DIR_MAP[item.dir];
           slot.classList.add('active');
@@ -1472,7 +1581,7 @@
             <span class="slot-num">#${i + 1}</span>
             <span class="slot-sample">-</span>
             <div class="slot-arrow" style="color: #334155;">-</div>
-            <div class="slot-conf">等待偵測</div>
+            <div class="slot-conf">${!canShow && currentCombo.length > 0 ? `已收集 ${currentCombo.length}/${thresholdCount}` : '等待偵測'}</div>
           `;
         }
       }
@@ -1486,19 +1595,20 @@
       pipCtx.fillStyle = '#0b111e';
       pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
 
+      const canShow = shouldDisplayCombo();
       pipCtx.fillStyle = '#94a3b8';
       pipCtx.font = 'bold 14px sans-serif';
       pipCtx.fillText(
-        roundFinished
+        roundFinished && canShow
           ? `MCJ 本輪完成 (${currentCombo.length} 步)`
-          : `MCJ 即時偵測序列 (${currentCombo.length}/${MAX_COMBO})`,
+          : `MCJ 即時偵測序列 (${canShow ? currentCombo.length : 0}/${MAX_COMBO})`,
         16, 26
       );
 
-      if (currentCombo.length === 0) {
+      if (!canShow) {
         pipCtx.fillStyle = '#475569';
-        pipCtx.font = 'bold 22px sans-serif';
-        pipCtx.fillText('等待動作出現...', 16, 95);
+        pipCtx.font = 'bold 20px sans-serif';
+        pipCtx.fillText('等待足夠動作數...', 16, 95);
         return;
       }
 
@@ -1563,6 +1673,12 @@
     ['thresholdInput', 'marginInput'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => {
         if (sourceMode === 'image') runDetectionStep(true);
+      });
+    });
+
+    ['minComboInput', 'hideBelowInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        renderComboUI();
       });
     });
 
