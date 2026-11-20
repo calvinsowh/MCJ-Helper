@@ -435,7 +435,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>去背景前景輪廓比對、同色系角色嚴格鎖定、紅地毯舞台防誤觸閘門及防重複序列</p>
+      <p>方向能量分佈強化、同色系角色嚴格鎖定、紅地毯舞台防誤觸閘門及防重複序列</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
@@ -496,7 +496,7 @@
         </div>
         <div class="setting-item">
           <label for="marginInput">領先第2名差距 (%)</label>
-          <input type="number" id="marginInput" value="1.5" min="0" max="40" step="0.5" />
+          <input type="number" id="marginInput" value="4.5" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合結束超時 (秒)</label>
@@ -624,9 +624,9 @@
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v6 Limb-Weighted)
+    // 2. IndexedDB Sample Persistence (v7 Directional Energy + Silhouette)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v6';
+    const DB_NAME = 'MCJDanceHelperDB_v7';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -652,7 +652,8 @@
           name: item.name,
           char: item.char,
           dir: item.dir,
-          fgVec: Array.from(item.fgVec)
+          fgVec: Array.from(item.fgVec),
+          dirEnergy: item.dirEnergy
         });
       }
       return new Promise((res) => { tx.oncomplete = res; });
@@ -670,7 +671,8 @@
             name: r.name,
             char: r.char,
             dir: r.dir,
-            fgVec: new Float32Array(r.fgVec)
+            fgVec: new Float32Array(r.fgVec),
+            dirEnergy: r.dirEnergy
           })));
         };
       });
@@ -684,7 +686,7 @@
     }
 
     // ==========================================
-    // 3. Limb-Weighted Silhouette & Edge Extraction
+    // 3. Directional Energy + Foreground Silhouette Extraction
     // ==========================================
     function isStaticBackgroundPixel(R, G, B) {
       if (G > R + 12 && G > B + 45 && R > 105 && B < 135) return true;
@@ -694,11 +696,10 @@
     }
 
     function getLimbSpatialWeight(x, y) {
-      // Boost left/right arm extension zones and upper/lower limb zones
-      const nx = x / GRID_W; // 0..1
-      const ny = y / GRID_H; // 0..1
-      const armBoost = (nx < 0.34 || nx > 0.66) ? 1.65 : 1.0;
-      const verticalBoost = (ny < 0.35 || ny > 0.65) ? 1.25 : 1.0;
+      const nx = x / GRID_W;
+      const ny = y / GRID_H;
+      const armBoost = (nx < 0.35 || nx > 0.65) ? 1.8 : 1.0;
+      const verticalBoost = (ny < 0.36 || ny > 0.62) ? 1.35 : 1.0;
       return armBoost * verticalBoost;
     }
 
@@ -725,8 +726,17 @@
       const colorG = new Float32Array(n);
       const colorB = new Float32Array(n);
 
+      // Regional foreground energy counters for U / D / L / R posture separation
+      let topFg = 0;
+      let bottomFg = 0;
+      let leftFg = 0;
+      let rightFg = 0;
+      let totalFg = 0.001;
+
       for (let y = 0; y < GRID_H; y++) {
+        const ny = y / GRID_H;
         for (let x = 0; x < GRID_W; x++) {
+          const nx = x / GRID_W;
           const i = y * GRID_W + x;
           const R = raw[i * 4];
           const G = raw[i * 4 + 1];
@@ -751,7 +761,16 @@
 
           const isBg = isStaticBackgroundPixel(R, G, B);
           const edgeWeight = (x < 5 || x > 42) ? 0.3 : 1.0;
-          fgMask[i] = isBg ? 0.0 : edgeWeight;
+          const m = isBg ? 0.0 : edgeWeight;
+          fgMask[i] = m;
+
+          if (m > 0) {
+            totalFg += m;
+            if (ny < 0.38) topFg += m;
+            if (ny > 0.58) bottomFg += m;
+            if (nx < 0.40) leftFg += m;
+            if (nx > 0.60) rightFg += m;
+          }
 
           lum[i] = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
           colorR[i] = R / 255;
@@ -769,6 +788,13 @@
         else if (yellowVotes === maxColorVotes) detectedChar = 'Y';
       }
 
+      const dirEnergy = {
+        topRatio: topFg / totalFg,
+        bottomRatio: bottomFg / totalFg,
+        leftRatio: leftFg / totalFg,
+        rightRatio: rightFg / totalFg
+      };
+
       const fgVec = new Float32Array(n * 4);
       let sum = 0;
 
@@ -780,12 +806,12 @@
 
           const gx = (x < GRID_W - 1 ? lum[i + 1] : lum[i]) - (x > 0 ? lum[i - 1] : lum[i]);
           const gy = (y < GRID_H - 1 ? lum[i + GRID_W] : lum[i]) - (y > 0 ? lum[i - GRID_W] : lum[i]);
-          const edge = Math.sqrt(gx * gx + gy * gy) * (m > 0 ? 1.8 : 0.25) * w;
+          const edge = Math.sqrt(gx * gx + gy * gy) * (m > 0 ? 1.9 : 0.2) * w;
 
           const c1 = m * (colorR[i] - colorG[i]) * w;
           const c2 = m * (colorB[i] - lum[i]) * w;
 
-          fgVec[i * 4] = m * 1.4 * w;
+          fgVec[i * 4] = m * 1.5 * w;
           fgVec[i * 4 + 1] = edge;
           fgVec[i * 4 + 2] = c1;
           fgVec[i * 4 + 3] = c2;
@@ -805,15 +831,36 @@
         fgVec[i] /= norm;
       }
 
-      return { fgVec, redCarpetRatio, detectedChar, maxColorVotes };
+      return { fgVec, dirEnergy, redCarpetRatio, detectedChar, maxColorVotes };
     }
 
-    function computeSimilarity(vecA, vecB) {
+    function computeSimilarity(currFeat, tpl) {
       let dot = 0;
-      for (let i = 0; i < vecA.length; i++) {
-        dot += vecA[i] * vecB[i];
+      for (let i = 0; i < currFeat.fgVec.length; i++) {
+        dot += currFeat.fgVec[i] * tpl.fgVec[i];
       }
-      return Math.max(0, Math.min(100, dot * 100));
+      let score = Math.max(0, Math.min(100, dot * 100));
+
+      // Directional posture bonus to amplify separation between U / D / L / R
+      const a = currFeat.dirEnergy;
+      const b = tpl.dirEnergy;
+      if (a && b) {
+        if (tpl.dir === 'D') {
+          const downMatch = 1 - Math.min(1, Math.abs((a.bottomRatio - a.topRatio) - (b.bottomRatio - b.topRatio)) * 4);
+          score += downMatch * 6.5;
+        } else if (tpl.dir === 'R') {
+          const rightMatch = 1 - Math.min(1, Math.abs((a.rightRatio - a.leftRatio) - (b.rightRatio - b.leftRatio)) * 4);
+          score += rightMatch * 6.5;
+        } else if (tpl.dir === 'L') {
+          const leftMatch = 1 - Math.min(1, Math.abs((a.leftRatio - a.rightRatio) - (b.leftRatio - b.rightRatio)) * 4);
+          score += leftMatch * 5.0;
+        } else if (tpl.dir === 'U') {
+          const upMatch = 1 - Math.min(1, Math.abs(a.topRatio - b.topRatio) * 4);
+          score += upMatch * 4.5;
+        }
+      }
+
+      return Math.max(0, Math.min(100, score));
     }
 
     function parseSampleFilename(filename) {
@@ -854,7 +901,7 @@
 
         if (img) {
           const feat = extractFeaturesFromImage(img);
-          loaded.push({ ...meta, fgVec: feat.fgVec });
+          loaded.push({ ...meta, fgVec: feat.fgVec, dirEnergy: feat.dirEnergy });
           URL.revokeObjectURL(img.src);
         }
       }
@@ -902,7 +949,7 @@
           });
           if (img) {
             const feat = extractFeaturesFromImage(img);
-            fetched.push({ ...meta, fgVec: feat.fgVec });
+            fetched.push({ ...meta, fgVec: feat.fgVec, dirEnergy: feat.dirEnergy });
           }
         } catch (_) {}
       }
@@ -1222,7 +1269,7 @@
       };
 
       for (const tpl of sameColorPool) {
-        const pct = computeSimilarity(currentFeat.fgVec, tpl.fgVec);
+        const pct = computeSimilarity(currentFeat, tpl);
         if (pct > bestByDir[tpl.dir].score) {
           bestByDir[tpl.dir] = { score: pct, name: tpl.name };
         }
@@ -1244,7 +1291,7 @@
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
       const threshold = parseFloat(document.getElementById('thresholdInput').value) || 55;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 0;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 4.5;
 
       if (top1.score >= threshold && leadMargin >= reqMargin) {
         const info = DIR_MAP[top1.dir];
@@ -1255,7 +1302,7 @@
 
         handleValidDetection(top1.dir, top1.name, top1.score, isManualTest);
       } else {
-        liveDirEl.textContent = '過場 / 未達門檻';
+        liveDirEl.textContent = '無明顯動作 / 過場';
         liveDirEl.className = 'detected-dir';
         liveDirEl.style.color = '#94a3b8';
         liveMetaEl.textContent = `最高: ${DIR_MAP[top1.dir].text} ${top1.score.toFixed(1)}% (差 +${leadMargin.toFixed(1)}%)`;
@@ -1508,4 +1555,3 @@
   </script>
 </body>
 </html>
-```[cite: 44, 45, 46, 47]
