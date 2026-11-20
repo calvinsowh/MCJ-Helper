@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>跑Online MCJ 一起共舞視覺偵測助手</title>
+  <style>
+    :root {
+      --bg-dark: #0b111e;
+      --panel-bg: #131c2e;
+      --panel-border: #1f2d47;
+      --accent-green: #10b981;
+      --accent-green-hover: #059669;
+      --accent-blue: #3b82f6;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header */
+    header {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 1.25rem;
+      color: #fbbf24;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-group p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Buttons & Inputs */
+    button, .file-btn {
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    button:hover, .file-btn:hover {
+      background: #334155;
+    }
+
+    button.primary {
+      background: var(--accent-green);
+      border-color: var(--accent-green);
+      color: #042f2e;
+    }
+
+    button.primary:hover {
+      background: var(--accent-green-hover);
+    }
+
+    button.danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--accent-red);
+      color: #fca5a5;
+    }
+
+    button.danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (max-width: 1024px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 10px;
+    }
+
+    .card-header h2 {
+      font-size: 1rem;
+      color: #e2e8f0;
+    }
+
+    /* Canvas Wrapper */
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: #060911;
+      border: 2px dashed #334155;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16 / 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    canvas#gameCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      cursor: crosshair;
+      display: block;
+    }
+
+    .placeholder-text {
+      position: absolute;
+      color: var(--text-muted);
+      text-align: center;
+      pointer-events: none;
+      padding: 20px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* Live Detection Overlay Badge */
+    .live-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(11, 17, 30, 0.88);
+      border: 1px solid var(--accent-green);
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-width: 150px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+
+    .live-badge .label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .live-badge .detected-dir {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fbbf24;
+      margin: 2px 0;
+    }
+
+    .live-badge .meta {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+
+    /* Settings Bar */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      background: #0d1524;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .setting-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .setting-item label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .setting-item input {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 100%;
+    }
+
+    /* Right Panel: Combo Sequence */
+    .quick-bar {
+      background: #0d1524;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .quick-sequence {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      flex-wrap: wrap;
+    }
+
+    .quick-pill {
+      background: #1e293b;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+    }
+
+    .combo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      flex: 1;
+    }
+
+    .combo-slot {
+      background: #0d1524;
+      border: 2px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 120px;
+      transition: all 0.2s ease;
+    }
+
+    .combo-slot.active {
+      border-color: var(--accent-green);
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+    }
+
+    .combo-slot .slot-num {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .combo-slot .slot-sample {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    .combo-slot .slot-arrow {
+      font-size: 2.2rem;
+      font-weight: 900;
+      margin: 6px 0;
+    }
+
+    .combo-slot .slot-conf {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Direction Colors */
+    .dir-U { color: #38bdf8; }
+    .dir-D { color: #fbbf24; }
+    .dir-L { color: #f472b6; }
+    .dir-R { color: #34d399; }
+
+    /* Timeout Progress Bar */
+    .timeout-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .timeout-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .progress-bg {
+      width: 100%;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-amber);
+      transition: width 0.08s linear;
+    }
+
+    /* Candidate Debug Bar */
+    .candidates-bar {
+      background: #0d1524;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .candidate-list {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .cand-item {
+      background: #162033;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      margin-right: 6px;
+    }
+
+    .status-dot.ready {
+      background: #10b981;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title-group">
+      <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
+      <p>支援視窗即時擷取、滑鼠拖曳鎖定舞台 ROI、防重複動作過濾及 2.2 秒回合自動結算</p>
+    </div>
+    <div class="header-actions">
+      <span id="sampleStatus" style="font-size: 0.85rem; color: #cbd5e1;">
+        <span class="status-dot" id="sampleDot"></span>已載入樣本：<strong id="sampleCount">0</strong> 張
+      </span>
+      <label class="file-btn" title="可一次過全選所有 B/P/Y + U/D/L/R 樣本圖">
+        📁 匯入樣本圖 (可多選)
+        <input type="file" id="sampleInput" accept="image/*" multiple />
+      </label>
+      <button class="danger" id="clearSamplesBtn" title="清除瀏覽器內儲存的樣本">🗑️ 重置樣本</button>
+      <button id="pipBtn" title="彈出置頂小視窗，方便疊在遊戲旁邊">🪟 置頂懸浮窗 (PiP)</button>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <!-- Left Panel: Screen Capture & ROI Selection -->
+    <section class="card">
+      <div class="card-header">
+        <h2>1. 遊戲畫面擷取與舞台框選</h2>
+        <div style="display: flex; gap: 8px;">
+          <button class="primary" id="shareBtn">🖥️ 選擇遊戲視窗</button>
+          <button id="resetRoiBtn">🔄 重設框選</button>
+        </div>
+      </div>
+
+      <div class="canvas-container" id="canvasContainer">
+        <div class="placeholder-text" id="placeholderText">
+          請先點擊右上角「匯入樣本圖」載入動作樣本<br />
+          再點擊「選擇遊戲視窗」分享 Tales Runner 畫面<br />
+          載入畫面後，<strong>按住滑鼠左鍵拖曳</strong>框選跳舞公仔範圍
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="live-badge" id="liveBadge" style="display: none;">
+          <div class="label">即時分析最高匹配</div>
+          <div class="detected-dir" id="liveDir">等待動作...</div>
+          <div class="meta" id="liveMeta">匹配度: --%</div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+        <span id="roiInfo">目前框選範圍：未設定（預設全畫面）</span>
+        <span id="fpsInfo">偵測狀態：待機中</span>
+      </div>
+
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label for="intervalInput">偵測間隔 (秒)</label>
+          <input type="number" id="intervalInput" value="0.15" min="0.05" max="2.0" step="0.05" />
+        </div>
+        <div class="setting-item">
+          <label for="thresholdInput">辨識信心門檻 (%)</label>
+          <input type="number" id="thresholdInput" value="58" min="30" max="95" step="1" />
+        </div>
+        <div class="setting-item">
+          <label for="timeoutInput">回合結束超時 (秒)</label>
+          <input type="number" id="timeoutInput" value="2.2" min="1.0" max="5.0" step="0.1" />
+        </div>
+        <div class="setting-item">
+          <label for="soundToggle">偵測提示音效</label>
+          <button id="soundToggle" style="justify-content: center; height: 35px;">🔊 音效：開啟</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Panel: Combo Output -->
+    <section class="card">
+      <div class="card-header">
+        <h2>2. 即時動作 Combo 順序 (防重複過濾)</h2>
+        <div style="display: flex; gap: 8px;">
+          <span id="roundBadge" style="background: #1e293b; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; color: #38bdf8;">
+            狀態：等待新一輪
+          </span>
+          <button class="danger" id="clearComboBtn">🧹 清空本輪</button>
+        </div>
+      </div>
+
+      <div class="quick-bar">
+        <span style="font-size: 0.85rem; color: var(--text-muted);">快速序列：</span>
+        <div class="quick-sequence" id="quickSequence">
+          <span style="color: #64748b; font-size: 0.9rem;">尚未偵測到動作</span>
+        </div>
+      </div>
+
+      <div class="combo-grid" id="comboGrid">
+        <!-- 6 Slots generated by JS -->
+      </div>
+
+      <div class="timeout-wrapper">
+        <div class="timeout-info">
+          <span id="timeoutText">2.2 秒無新動作自動結算本輪</span>
+          <span id="timeoutCountdown">0.0s</span>
+        </div>
+        <div class="progress-bg">
+          <div class="progress-fill" id="timeoutBar"></div>
+        </div>
+      </div>
+
+      <div class="candidates-bar">
+        <div style="font-size: 0.78rem; color: var(--text-muted);">四方向即時相似度監控：</div>
+        <div class="candidate-list">
+          <div class="cand-item"><span class="dir-U">↑ 上 (U)</span><strong id="scoreU">0.0%</strong></div>
+          <div class="cand-item"><span class="dir-D">↓ 下 (D)</span><strong id="scoreD">0.0%</strong></div>
+          <div class="cand-item"><span class="dir-L">← 左 (L)</span><strong id="scoreL">0.0%</strong></div>
+          <div class="cand-item"><span class="dir-R">→ 右 (R)</span><strong id="scoreR">0.0%</strong></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Hidden video & processing canvases -->
+  <video id="sourceVideo" autoplay playsinline muted style="display: none;"></video>
+  <canvas id="procCanvas" width="64" height="72" style="display: none;"></canvas>
+  <canvas id="pipCanvas" width="420" height="160" style="display: none;"></canvas>
+  <video id="pipVideo" autoplay muted playsinline style="display: none;"></video>
+
+  <script>
+    // ==========================================
+    // 1. Constants & State
+    // ==========================================
+    const NORM_W = 64;
+    const NORM_H = 72;
+    const MAX_COMBO = 6;
+
+    const DIR_MAP = {
+      U: { label: '↑ 上', arrow: '↑', text: '上', class: 'dir-U', freq: 523.25 },
+      D: { label: '↓ 下', arrow: '↓', text: '下', class: 'dir-D', freq: 392.00 },
+      L: { label: '← 左', arrow: '←', text: '左', class: 'dir-L', freq: 440.00 },
+      R: { label: '→ 右', arrow: '→', text: '右', class: 'dir-R', freq: 587.33 }
+    };
+
+    // Known filenames for optional auto-fetch from ./samples/ on GitHub Pages
+    const DEFAULT_SAMPLE_FILES = [
+      'BD1.jpg', 'BD2.jpg', 'BL1.jpg', 'BR1.jpg', 'BR2.jpg', 'BU1.jpg', 'BU2.jpg',
+      'PD1.jpg', 'PD2.jpg', 'PL1.jpg', 'PL2.jpg', 'PL3.jpg', 'PR.jpg', 'PR1.jpg', 'PR2.jpg', 'PU1.jpg', 'PU2.jpg',
+      'YD1.jpg', 'YD2.jpg', 'YL1.jpg', 'YL2.jpg', 'YR1.jpg', 'YR2.jpg', 'YR3.jpg', 'YU1.jpg', 'YU2.jpg'
+    ];
+
+    let templates = []; // { name, char, dir, features: Float32Array }
+    let stream = null;
+    let detectTimer = null;
+    let soundEnabled = true;
+
+    // ROI (in video native pixel coordinates)
+    let roi = null; // { x, y, w, h }
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    // Combo State
+    let currentCombo = []; // [{ dir, sampleName, score, time }]
+    let lastDetectedDir = null;
+    let lastActionTimestamp = 0;
+    let roundFinished = false;
+
+    // DOM Elements
+    const video = document.getElementById('sourceVideo');
+    const gameCanvas = document.getElementById('gameCanvas');
+    const ctx = gameCanvas.getContext('2d');
+    const procCanvas = document.getElementById('procCanvas');
+    const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+
+    // ==========================================
+    // 2. IndexedDB Sample Persistence
+    // ==========================================
+    const DB_NAME = 'MCJDanceHelperDB';
+    const STORE_NAME = 'samples';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveSamplesToDB(items) {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      for (const item of items) {
+        store.put({
+          name: item.name,
+          char: item.char,
+          dir: item.dir,
+          features: Array.from(item.features)
+        });
+      }
+      return new Promise((res) => { tx.oncomplete = res; });
+    }
+
+    async function loadSamplesFromDB() {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      return new Promise((res) => {
+        req.onsuccess = () => {
+          const rows = req.result || [];
+          res(rows.map(r => ({
+            name: r.name,
+            char: r.char,
+            dir: r.dir,
+            features: new Float32Array(r.features)
+          })));
+        };
+      });
+    }
+
+    async function clearSamplesDB() {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).clear();
+      return new Promise((res) => { tx.oncomplete = res; });
+    }
+
+    // ==========================================
+    // 3. Feature Extraction (Normalized RGB + Center Weight)
+    // ==========================================
+    function extractFeaturesFromImage(imgElement) {
+      procCtx.clearRect(0, 0, NORM_W, NORM_H);
+      procCtx.drawImage(imgElement, 0, 0, NORM_W, NORM_H);
+      return extractFeaturesFromContext(procCtx);
+    }
+
+    function extractFeaturesFromContext(context) {
+      const imgData = context.getImageData(0, 0, NORM_W, NORM_H).data;
+      // Store normalized RGB values with mean-subtraction for lighting invariance
+      const vec = new Float32Array(NORM_W * NORM_H * 3);
+      let sum = 0;
+      let idx = 0;
+      for (let i = 0; i < imgData.length; i += 4) {
+        const r = imgData[i] / 255;
+        const g = imgData[i + 1] / 255;
+        const b = imgData[i + 2] / 255;
+        vec[idx++] = r;
+        vec[idx++] = g;
+        vec[idx++] = b;
+        sum += r + g + b;
+      }
+      const mean = sum / vec.length;
+      let norm = 0;
+      for (let i = 0; i < vec.length; i++) {
+        vec[i] -= mean;
+        norm += vec[i] * vec[i];
+      }
+      norm = Math.sqrt(norm) || 1;
+      for (let i = 0; i < vec.length; i++) {
+        vec[i] /= norm;
+      }
+      return vec;
+    }
+
+    function parseSampleFilename(filename) {
+      const clean = filename.split('/').pop().split('\\').pop().toUpperCase();
+      if (clean.length < 2) return null;
+      const charCode = clean[0]; // B, P, Y
+      const dirCode = clean[1];  // U, D, L, R
+      if (!['B', 'P', 'Y'].includes(charCode)) return null;
+      if (!['U', 'D', 'L', 'R'].includes(dirCode)) return null;
+      return { name: filename, char: charCode, dir: dirCode };
+    }
+
+    function updateSampleUI() {
+      document.getElementById('sampleCount').textContent = templates.length;
+      const dot = document.getElementById('sampleDot');
+      if (templates.length > 0) {
+        dot.classList.add('ready');
+      } else {
+        dot.classList.remove('ready');
+      }
+    }
+
+    // Handle Manual File Upload
+    document.getElementById('sampleInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+
+      const loaded = [];
+      for (const file of files) {
+        const meta = parseSampleFilename(file.name);
+        if (!meta) continue;
+
+        const img = await new Promise((resolve) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => resolve(null);
+          image.src = URL.createObjectURL(file);
+        });
+
+        if (img) {
+          const features = extractFeaturesFromImage(img);
+          loaded.push({ ...meta, features });
+          URL.revokeObjectURL(img.src);
+        }
+      }
+
+      if (loaded.length > 0) {
+        // Merge by filename
+        const map = new Map(templates.map(t => [t.name, t]));
+        loaded.forEach(item => map.set(item.name, item));
+        templates = Array.from(map.values());
+        await saveSamplesToDB(templates);
+        updateSampleUI();
+        alert(`成功匯入 ${loaded.length} 張樣本圖！（目前總計 ${templates.length} 張）`);
+      } else {
+        alert('未找到符合命名規則的圖片（檔名第1字需為 B/P/Y，第2字需為 U/D/L/R）。');
+      }
+      e.target.value = '';
+    });
+
+    document.getElementById('clearSamplesBtn').addEventListener('click', async () => {
+      if (!confirm('確定要清除已儲存的所有動作樣本嗎？')) return;
+      templates = [];
+      await clearSamplesDB();
+      updateSampleUI();
+    });
+
+    // Auto-load from IndexedDB or ./samples/ folder on startup
+    async function initSamples() {
+      const cached = await loadSamplesFromDB();
+      if (cached.length > 0) {
+        templates = cached;
+        updateSampleUI();
+        return;
+      }
+
+      // Try fetching from ./samples/ directory if hosted on GitHub Pages
+      const fetched = [];
+      for (const fname of DEFAULT_SAMPLE_FILES) {
+        const meta = parseSampleFilename(fname);
+        if (!meta) continue;
+        try {
+          const img = await new Promise((resolve) => {
+            const image = new Image();
+            image.crossOrigin = 'anonymous';
+            image.onload = () => resolve(image);
+            image.onerror = () => resolve(null);
+            image.src = `./samples/${fname}`;
+          });
+          if (img) {
+            fetched.push({ ...meta, features: extractFeaturesFromImage(img) });
+          }
+        } catch (_) {}
+      }
+
+      if (fetched.length > 0) {
+        templates = fetched;
+        await saveSamplesToDB(templates);
+        updateSampleUI();
+      }
+    }
+
+    // ==========================================
+    // 4. Screen Capture & Drag ROI Selection
+    // ==========================================
+    document.getElementById('shareBtn').addEventListener('click', async () => {
+      try {
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+        }
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'never', frameRate: 60 },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        document.getElementById('placeholderText').style.display = 'none';
+        document.getElementById('liveBadge').style.display = 'block';
+
+        stream.getVideoTracks()[0].onended = () => {
+          stopDetectionLoop();
+          document.getElementById('fpsInfo').textContent = '偵測狀態：視窗分享已停止';
+        };
+
+        startRenderLoop();
+        restartDetectionLoop();
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    function getCanvasMousePos(e) {
+      const rect = gameCanvas.getBoundingClientRect();
+      // Account for object-fit: contain scaling
+      const videoRatio = gameCanvas.width / gameCanvas.height;
+      const rectRatio = rect.width / rect.height;
+
+      let renderW = rect.width;
+      let renderH = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (rectRatio > videoRatio) {
+        renderW = rect.height * videoRatio;
+        offsetX = (rect.width - renderW) / 2;
+      } else {
+        renderH = rect.width / videoRatio;
+        offsetY = (rect.height - renderH) / 2;
+      }
+
+      const relX = Math.max(0, Math.min(renderW, e.clientX - rect.left - offsetX));
+      const relY = Math.max(0, Math.min(renderH, e.clientY - rect.top - offsetY));
+
+      return {
+        x: Math.round((relX / renderW) * gameCanvas.width),
+        y: Math.round((relY / renderH) * gameCanvas.height)
+      };
+    }
+
+    gameCanvas.addEventListener('mousedown', (e) => {
+      if (!video.videoWidth) return;
+      isDragging = true;
+      dragStart = getCanvasMousePos(e);
+      roi = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+    });
+
+    gameCanvas.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const curr = getCanvasMousePos(e);
+      roi = {
+        x: Math.min(dragStart.x, curr.x),
+        y: Math.min(dragStart.y, curr.y),
+        w: Math.abs(curr.x - dragStart.x),
+        h: Math.abs(curr.y - dragStart.y)
+      };
+      updateRoiInfo();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (roi && (roi.w < 15 || roi.h < 15)) {
+        roi = null;
+      }
+      updateRoiInfo();
+    });
+
+    document.getElementById('resetRoiBtn').addEventListener('click', () => {
+      roi = null;
+      updateRoiInfo();
+    });
+
+    function updateRoiInfo() {
+      const el = document.getElementById('roiInfo');
+      if (roi && roi.w > 0 && roi.h > 0) {
+        el.textContent = `已鎖定範圍：(${roi.x}, ${roi.y}) 尺寸 ${roi.w}×${roi.h}`;
+        el.style.color = '#34d399';
+      } else {
+        el.textContent = '目前框選範圍：未設定（預設全畫面）';
+        el.style.color = '#94a3b8';
+      }
+    }
+
+    function startRenderLoop() {
+      function render() {
+        if (video.readyState >= 2) {
+          if (gameCanvas.width !== video.videoWidth || gameCanvas.height !== video.videoHeight) {
+            gameCanvas.width = video.videoWidth;
+            gameCanvas.height = video.videoHeight;
+          }
+          ctx.drawImage(video, 0, 0, gameCanvas.width, gameCanvas.height);
+
+          // Draw ROI Overlay
+          if (roi && roi.w > 0 && roi.h > 0) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.fillRect(0, 0, gameCanvas.width, roi.y);
+            ctx.fillRect(0, roi.y + roi.h, gameCanvas.width, gameCanvas.height - (roi.y + roi.h));
+            ctx.fillRect(0, roi.y, roi.x, roi.h);
+            ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
+
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = Math.max(3, Math.round(gameCanvas.width / 350));
+            ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+          }
+        }
+        updateTimeoutUI();
+        drawPiPCanvas();
+        requestAnimationFrame(render);
+      }
+      requestAnimationFrame(render);
+    }
+
+    // ==========================================
+    // 5. Core Detection & No-Repeat Combo Engine
+    // ==========================================
+    function playBeep(freq) {
+      if (!soundEnabled) return;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+      } catch (_) {}
+    }
+
+    function runDetectionStep() {
+      if (video.readyState < 2 || templates.length === 0) return;
+
+      const sx = roi ? roi.x : 0;
+      const sy = roi ? roi.y : 0;
+      const sw = roi ? roi.w : video.videoWidth;
+      const sh = roi ? roi.h : video.videoHeight;
+      if (sw < 10 || sh < 10) return;
+
+      procCtx.drawImage(video, sx, sy, sw, sh, 0, 0, NORM_W, NORM_H);
+      const currentVec = extractFeaturesFromContext(procCtx);
+
+      // Find best score per direction
+      const bestByDir = {
+        U: { score: 0, name: '' },
+        D: { score: 0, name: '' },
+        L: { score: 0, name: '' },
+        R: { score: 0, name: '' }
+      };
+
+      for (const tpl of templates) {
+        let dot = 0;
+        const tVec = tpl.features;
+        for (let i = 0; i < currentVec.length; i++) {
+          dot += currentVec[i] * tVec[i];
+        }
+        // Cosine similarity mapped to percentage (0~100%)
+        const pct = Math.max(0, Math.min(100, dot * 100));
+        if (pct > bestByDir[tpl.dir].score) {
+          bestByDir[tpl.dir] = { score: pct, name: tpl.name };
+        }
+      }
+
+      // Update candidate monitor UI
+      ['U', 'D', 'L', 'R'].forEach(d => {
+        document.getElementById(`score${d}`).textContent = `${bestByDir[d].score.toFixed(1)}%`;
+      });
+
+      // Find overall winner
+      let bestDir = null;
+      let bestScore = -1;
+      let bestSample = '';
+      for (const d of ['U', 'D', 'L', 'R']) {
+        if (bestByDir[d].score > bestScore) {
+          bestScore = bestByDir[d].score;
+          bestDir = d;
+          bestSample = bestByDir[d].name;
+        }
+      }
+
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 58;
+      const liveDirEl = document.getElementById('liveDir');
+      const liveMetaEl = document.getElementById('liveMeta');
+
+      if (bestDir && bestScore >= threshold) {
+        const info = DIR_MAP[bestDir];
+        liveDirEl.textContent = `${info.label}`;
+        liveDirEl.className = `detected-dir ${info.class}`;
+        liveMetaEl.textContent = `${bestSample} | 匹配度: ${bestScore.toFixed(1)}%`;
+
+        handleValidDetection(bestDir, bestSample, bestScore);
+      } else {
+        liveDirEl.textContent = '待機 / 過場中';
+        liveDirEl.className = 'detected-dir';
+        liveDirEl.style.color = '#94a3b8';
+        liveMetaEl.textContent = `最高: ${bestScore.toFixed(1)}% (低於門檻)`;
+      }
+    }
+
+    function handleValidDetection(dir, sampleName, score) {
+      const now = performance.now();
+      const timeoutMs = (parseFloat(document.getElementById('timeoutInput').value) || 2.2) * 1000;
+
+      // If previous round already timed out (> 2.2s), start a fresh round!
+      if (roundFinished || (lastActionTimestamp > 0 && (now - lastActionTimestamp) > timeoutMs)) {
+        currentCombo = [];
+        lastDetectedDir = null;
+        roundFinished = false;
+      }
+
+      // Rule: Consecutive actions NEVER repeat (e.g., Up -> Up is ignored as still holding same pose)
+      if (dir === lastDetectedDir) {
+        return;
+      }
+
+      // Record new distinct action (max 6 per round)
+      if (currentCombo.length < MAX_COMBO) {
+        lastDetectedDir = dir;
+        lastActionTimestamp = now;
+        currentCombo.push({
+          dir,
+          sampleName,
+          score,
+          elapsed: currentCombo.length === 0 ? 0 : ((now - currentCombo[0].timestamp) / 1000),
+          timestamp: now
+        });
+
+        playBeep(DIR_MAP[dir].freq);
+        renderComboUI();
+      }
+    }
+
+    function updateTimeoutUI() {
+      const timeoutSec = parseFloat(document.getElementById('timeoutInput').value) || 2.2;
+      const timeoutMs = timeoutSec * 1000;
+      const bar = document.getElementById('timeoutBar');
+      const countdown = document.getElementById('timeoutCountdown');
+      const badge = document.getElementById('roundBadge');
+
+      if (currentCombo.length === 0) {
+        bar.style.width = '0%';
+        countdown.textContent = '0.0s';
+        badge.textContent = '狀態：等待新一輪';
+        badge.style.color = '#38bdf8';
+        return;
+      }
+
+      const elapsed = performance.now() - lastActionTimestamp;
+      if (elapsed >= timeoutMs) {
+        roundFinished = true;
+        bar.style.width = '100%';
+        bar.style.background = '#10b981';
+        countdown.textContent = '本輪已鎖定';
+        badge.textContent = `狀態：本輪完成 (${currentCombo.length} 個動作)`;
+        badge.style.color = '#34d399';
+      } else {
+        const pct = (elapsed / timeoutMs) * 100;
+        bar.style.width = `${pct}%`;
+        bar.style.background = '#f59e0b';
+        countdown.textContent = `${((timeoutMs - elapsed) / 1000).toFixed(1)}s`;
+        badge.textContent = `狀態：偵測進行中 (${currentCombo.length}/${MAX_COMBO})`;
+        badge.style.color = '#fbbf24';
+      }
+    }
+
+    // ==========================================
+    // 6. Combo Grid & PiP Rendering
+    // ==========================================
+    function initComboGrid() {
+      const grid = document.getElementById('comboGrid');
+      grid.innerHTML = '';
+      for (let i = 0; i < MAX_COMBO; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'combo-slot';
+        slot.id = `slot-${i}`;
+        slot.innerHTML = `
+          <span class="slot-num">#${i + 1}</span>
+          <span class="slot-sample">-</span>
+          <div class="slot-arrow" style="color: #334155;">-</div>
+          <div class="slot-conf">等待偵測</div>
+        `;
+        grid.appendChild(slot);
+      }
+    }
+
+    function renderComboUI() {
+      const quickEl = document.getElementById('quickSequence');
+      if (currentCombo.length === 0) {
+        quickEl.innerHTML = '<span style="color: #64748b; font-size: 0.9rem;">尚未偵測到動作</span>';
+      } else {
+        quickEl.innerHTML = currentCombo.map(item => {
+          const info = DIR_MAP[item.dir];
+          return `<span class="quick-pill ${info.class}">${info.label}</span>`;
+        }).join('<span style="color:#475569;">➔</span>');
+      }
+
+      for (let i = 0; i < MAX_COMBO; i++) {
+        const slot = document.getElementById(`slot-${i}`);
+        const item = currentCombo[i];
+        if (item) {
+          const info = DIR_MAP[item.dir];
+          slot.classList.add('active');
+          slot.innerHTML = `
+            <span class="slot-num">#${i + 1}</span>
+            <span class="slot-sample">${item.sampleName}</span>
+            <div class="slot-arrow ${info.class}">${info.label}</div>
+            <div class="slot-conf">${item.score.toFixed(0)}% (+${item.elapsed.toFixed(2)}s)</div>
+          `;
+        } else {
+          slot.classList.remove('active');
+          slot.innerHTML = `
+            <span class="slot-num">#${i + 1}</span>
+            <span class="slot-sample">-</span>
+            <div class="slot-arrow" style="color: #334155;">-</div>
+            <div class="slot-conf">等待偵測</div>
+          `;
+        }
+      }
+    }
+
+    // Picture-in-Picture Floating Window
+    const pipCanvas = document.getElementById('pipCanvas');
+    const pipCtx = pipCanvas.getContext('2d');
+    const pipVideo = document.getElementById('pipVideo');
+
+    function drawPiPCanvas() {
+      pipCtx.fillStyle = '#0b111e';
+      pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
+
+      pipCtx.fillStyle = '#94a3b8';
+      pipCtx.font = 'bold 14px sans-serif';
+      pipCtx.fillText(
+        roundFinished
+          ? `MCJ 本輪完成 (${currentCombo.length} 步)`
+          : `MCJ 即時偵測序列 (${currentCombo.length}/${MAX_COMBO})`,
+        16, 26
+      );
+
+      if (currentCombo.length === 0) {
+        pipCtx.fillStyle = '#475569';
+        pipCtx.font = 'bold 22px sans-serif';
+        pipCtx.fillText('等待動作出現...', 16, 95);
+        return;
+      }
+
+      const boxW = 60;
+      const gap = 8;
+      currentCombo.forEach((item, idx) => {
+        const x = 16 + idx * (boxW + gap);
+        const y = 45;
+        pipCtx.fillStyle = '#131c2e';
+        pipCtx.strokeStyle = '#10b981';
+        pipCtx.lineWidth = 2;
+        pipCtx.fillRect(x, y, boxW, 90);
+        pipCtx.strokeRect(x, y, boxW, 90);
+
+        const colors = { U: '#38bdf8', D: '#fbbf24', L: '#f472b6', R: '#34d399' };
+        pipCtx.fillStyle = colors[item.dir];
+        pipCtx.font = 'bold 28px sans-serif';
+        pipCtx.textAlign = 'center';
+        pipCtx.fillText(DIR_MAP[item.dir].arrow, x + boxW / 2, y + 42);
+        pipCtx.font = 'bold 18px sans-serif';
+        pipCtx.fillText(DIR_MAP[item.dir].text, x + boxW / 2, y + 72);
+        pipCtx.textAlign = 'left';
+      });
+    }
+
+    document.getElementById('pipBtn').addEventListener('click', async () => {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          return;
+        }
+        drawPiPCanvas();
+        pipVideo.srcObject = pipCanvas.captureStream(30);
+        await pipVideo.play();
+        await pipVideo.requestPictureInPicture();
+      } catch (err) {
+        alert('你的瀏覽器不支援畫中畫懸浮窗，或請先開始遊戲畫面擷取。');
+      }
+    });
+
+    // ==========================================
+    // 7. Loop & Controls
+    // ==========================================
+    function restartDetectionLoop() {
+      stopDetectionLoop();
+      const sec = parseFloat(document.getElementById('intervalInput').value) || 0.15;
+      const ms = Math.max(50, Math.round(sec * 1000));
+      detectTimer = setInterval(runDetectionStep, ms);
+      document.getElementById('fpsInfo').textContent = `偵測狀態：運行中 (每 ${sec} 秒掃描一次)`;
+    }
+
+    function stopDetectionLoop() {
+      if (detectTimer) {
+        clearInterval(detectTimer);
+        detectTimer = null;
+      }
+    }
+
+    document.getElementById('intervalInput').addEventListener('change', () => {
+      if (stream) restartDetectionLoop();
+    });
+
+    document.getElementById('clearComboBtn').addEventListener('click', () => {
+      currentCombo = [];
+      lastDetectedDir = null;
+      lastActionTimestamp = 0;
+      roundFinished = false;
+      renderComboUI();
+    });
+
+    document.getElementById('soundToggle').addEventListener('click', (e) => {
+      soundEnabled = !soundEnabled;
+      e.target.textContent = soundEnabled ? '🔊 音效：開啟' : '🔇 音效：靜音';
+    });
+
+    // Initialize
+    initComboGrid();
+    initSamples();
+  </script>
+</body>
+</html>
