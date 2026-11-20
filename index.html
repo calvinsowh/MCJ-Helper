@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.4)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.6)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -251,7 +251,6 @@
       flex-shrink: 0;
     }
 
-    /* Share Screen 區域自動撐滿剩餘高度，放返大 */
     .canvas-container {
       position: relative;
       width: 100%;
@@ -372,44 +371,13 @@
       width: 100%;
     }
 
-    .quick-bar {
-      background: #091321;
-      border: 1px solid #1b314d;
-      border-radius: 8px;
-      padding: 7px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .quick-sequence {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 1.1rem;
-      font-weight: 900;
-      flex-wrap: wrap;
-    }
-
-    .quick-pill {
-      background: #122640;
-      padding: 3px 10px;
-      border-radius: 6px;
-      border: 1px solid #284b78;
-      font-weight: 900;
-    }
-
-    /* 6 個 ANS 格子自動撐滿右欄中間高度，恢復原本大尺寸 */
     .combo-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(2, 1fr);
       gap: 10px;
       flex: 1;
-      min-height: 180px;
+      min-height: 190px;
     }
 
     .combo-slot {
@@ -425,10 +393,28 @@
       transition: all 0.2s ease;
     }
 
-    .combo-slot.active {
-      border-color: #3b82f6;
-      background: #0d2240;
-      box-shadow: 0 0 16px rgba(59, 130, 246, 0.24);
+    .combo-slot.active-U {
+      background: rgba(16, 185, 129, 0.24);
+      border-color: #34d399;
+      box-shadow: 0 0 16px rgba(52, 211, 153, 0.25);
+    }
+
+    .combo-slot.active-D {
+      background: rgba(245, 158, 11, 0.24);
+      border-color: #fbbf24;
+      box-shadow: 0 0 16px rgba(251, 191, 36, 0.25);
+    }
+
+    .combo-slot.active-L {
+      background: rgba(14, 165, 233, 0.24);
+      border-color: #38bdf8;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+    }
+
+    .combo-slot.active-R {
+      background: rgba(236, 72, 153, 0.24);
+      border-color: #f472b6;
+      box-shadow: 0 0 16px rgba(244, 114, 182, 0.25);
     }
 
     .combo-slot .slot-num {
@@ -437,7 +423,7 @@
       left: 10px;
       font-size: 0.78rem;
       font-weight: 900;
-      color: #93c5fd;
+      color: #e2e8f0;
     }
 
     .combo-slot .slot-sample {
@@ -446,7 +432,7 @@
       right: 10px;
       font-size: 0.7rem;
       font-weight: 800;
-      color: #64748b;
+      color: #cbd5e1;
       max-width: 85px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -462,13 +448,13 @@
     .combo-slot .slot-conf {
       font-size: 0.76rem;
       font-weight: 800;
-      color: #cbd5e1;
+      color: #f8fafc;
     }
 
-    .dir-U { color: #38bdf8; font-weight: 900; }
+    .dir-U { color: #34d399; font-weight: 900; }
     .dir-D { color: #fbbf24; font-weight: 900; }
-    .dir-L { color: #f472b6; font-weight: 900; }
-    .dir-R { color: #34d399; font-weight: 900; }
+    .dir-L { color: #38bdf8; font-weight: 900; }
+    .dir-R { color: #f472b6; font-weight: 900; }
 
     .timeout-wrapper {
       display: flex;
@@ -565,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>背景水平基準線自動對齊、抗星星閃光干擾、Standby 防誤判與藍色 ANS 懸浮窗</p>
+      <p>背景水平基準線自動對齊、抗星星閃光干擾、Standby 防誤判與彩色 ANS 懸浮窗</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -647,7 +633,7 @@
         </div>
         <div class="setting-item">
           <label for="marginInput">領先差距 (%)</label>
-          <input type="number" id="marginInput" value="15" min="0" max="40" step="0.5" />
+          <input type="number" id="marginInput" value="12" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
           <label for="confirmFramesInput">連續確認幀數</label>
@@ -677,13 +663,6 @@
             狀態：等待新一輪
           </span>
           <button class="danger" id="clearComboBtn">🧹 清空本輪</button>
-        </div>
-      </div>
-
-      <div class="quick-bar">
-        <span style="font-size: 0.8rem; font-weight: 800; color: var(--text-muted);">快速序列：</span>
-        <div class="quick-sequence" id="quickSequence">
-          <span style="color: #64748b; font-size: 0.85rem; font-weight: 800;">少於最少 Combo 數暫不顯示</span>
         </div>
       </div>
 
@@ -744,11 +723,52 @@
     const MAX_COMBO = 6;
     const STALE_CLEAR_MS = 5000;
 
+    // 上: 翠綠底色＋綠框 | 下: 琥珀金底色＋金框 | 左: 青藍底色＋青藍框 | 右: 桃粉底色＋粉框
     const DIR_MAP = {
-      U: { label: '↑ 上', arrow: '↑', text: '上', class: 'dir-U', freq: 523.25 },
-      D: { label: '↓ 下', arrow: '↓', text: '下', class: 'dir-D', freq: 392.00 },
-      L: { label: '← 左', arrow: '←', text: '左', class: 'dir-L', freq: 440.00 },
-      R: { label: '→ 右', arrow: '→', text: '右', class: 'dir-R', freq: 587.33 }
+      U: {
+        label: '↑ 上',
+        arrow: '↑',
+        text: '上',
+        class: 'dir-U',
+        slotClass: 'active-U',
+        bg: '#103b2e',
+        border: '#34d399',
+        color: '#34d399',
+        freq: 523.25
+      },
+      D: {
+        label: '↓ 下',
+        arrow: '↓',
+        text: '下',
+        class: 'dir-D',
+        slotClass: 'active-D',
+        bg: '#3d2a0c',
+        border: '#fbbf24',
+        color: '#fbbf24',
+        freq: 392.00
+      },
+      L: {
+        label: '← 左',
+        arrow: '←',
+        text: '左',
+        class: 'dir-L',
+        slotClass: 'active-L',
+        bg: '#0d2f45',
+        border: '#38bdf8',
+        color: '#38bdf8',
+        freq: 440.00
+      },
+      R: {
+        label: '→ 右',
+        arrow: '→',
+        text: '右',
+        class: 'dir-R',
+        slotClass: 'active-R',
+        bg: '#3d1329',
+        border: '#f472b6',
+        color: '#f472b6',
+        freq: 587.33
+      }
     };
 
     const CHAR_NAMES = {
@@ -1644,7 +1664,7 @@
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
       const threshold = parseFloat(document.getElementById('thresholdInput').value) || 85;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 15;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 12;
 
       if (standbyScore > 0 && standbyScore >= top1.score - 2.0) {
         candidateDir = null;
@@ -1823,25 +1843,17 @@
     }
 
     function renderComboUI() {
-      const quickEl = document.getElementById('quickSequence');
       const minComboReq = getMinComboReq();
       const canShow = shouldDisplayCombo();
-
-      if (!canShow) {
-        quickEl.innerHTML = `<span style="color: #64748b; font-size: 0.85rem; font-weight: 800;">尚未達 ${minComboReq} 個動作，暫不顯示</span>`;
-      } else {
-        quickEl.innerHTML = currentCombo.map(item => {
-          const info = DIR_MAP[item.dir];
-          return `<span class="quick-pill ${info.class}">${info.label}</span>`;
-        }).join('<span style="color:#60a5fa; font-weight:900;">➔</span>');
-      }
 
       for (let i = 0; i < MAX_COMBO; i++) {
         const slot = document.getElementById(`slot-${i}`);
         const item = canShow ? currentCombo[i] : null;
+        slot.className = 'combo-slot';
+
         if (item) {
           const info = DIR_MAP[item.dir];
-          slot.classList.add('active');
+          slot.classList.add(info.slotClass);
           slot.innerHTML = `
             <span class="slot-num">#${i + 1}</span>
             <span class="slot-sample" title="${item.sampleName}">${item.sampleName}</span>
@@ -1849,7 +1861,6 @@
             <div class="slot-conf">${item.score.toFixed(0)}% (+${item.elapsed.toFixed(2)}s)</div>
           `;
         } else {
-          slot.classList.remove('active');
           slot.innerHTML = `
             <span class="slot-num">#${i + 1}</span>
             <span class="slot-sample">-</span>
@@ -1891,21 +1902,21 @@
       const boxW = 60;
       const gap = 8;
       currentCombo.forEach((item, idx) => {
+        const info = DIR_MAP[item.dir];
         const x = 16 + idx * (boxW + gap);
         const y = 45;
-        pipCtx.fillStyle = '#0c203d';
-        pipCtx.strokeStyle = '#3b82f6';
+        pipCtx.fillStyle = info.bg;
+        pipCtx.strokeStyle = info.border;
         pipCtx.lineWidth = 2.5;
         pipCtx.fillRect(x, y, boxW, 90);
         pipCtx.strokeRect(x, y, boxW, 90);
 
-        const colors = { U: '#38bdf8', D: '#fbbf24', L: '#f472b6', R: '#34d399' };
-        pipCtx.fillStyle = colors[item.dir];
+        pipCtx.fillStyle = info.color;
         pipCtx.font = '900 28px sans-serif';
         pipCtx.textAlign = 'center';
-        pipCtx.fillText(DIR_MAP[item.dir].arrow, x + boxW / 2, y + 42);
+        pipCtx.fillText(info.arrow, x + boxW / 2, y + 42);
         pipCtx.font = '900 18px sans-serif';
-        pipCtx.fillText(DIR_MAP[item.dir].text, x + boxW / 2, y + 72);
+        pipCtx.fillText(info.text, x + boxW / 2, y + 72);
         pipCtx.textAlign = 'left';
       });
     }
