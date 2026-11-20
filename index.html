@@ -492,11 +492,11 @@
         </div>
         <div class="setting-item">
           <label for="thresholdInput">辨識信心門檻 (%)</label>
-          <input type="number" id="thresholdInput" value="30" min="10" max="90" step="1" />
+          <input type="number" id="thresholdInput" value="55" min="10" max="95" step="1" />
         </div>
         <div class="setting-item">
           <label for="marginInput">領先第2名差距 (%)</label>
-          <input type="number" id="marginInput" value="6" min="0" max="40" step="1" />
+          <input type="number" id="marginInput" value="1.5" min="0" max="40" step="0.5" />
         </div>
         <div class="setting-item">
           <label for="timeoutInput">回合結束超時 (秒)</label>
@@ -624,9 +624,9 @@
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
     // ==========================================
-    // 2. IndexedDB Sample Persistence (v5 Foreground Silhouette)
+    // 2. IndexedDB Sample Persistence (v6 Limb-Weighted)
     // ==========================================
-    const DB_NAME = 'MCJDanceHelperDB_v5';
+    const DB_NAME = 'MCJDanceHelperDB_v6';
     const STORE_NAME = 'samples';
 
     function openDB() {
@@ -684,16 +684,22 @@
     }
 
     // ==========================================
-    // 3. Background Removal + Foreground Silhouette & Edge Extraction
+    // 3. Limb-Weighted Silhouette & Edge Extraction
     // ==========================================
     function isStaticBackgroundPixel(R, G, B) {
-      // 1. Olive-green upper wall background (R ~130..175, G ~160..205, B ~70..125)
       if (G > R + 12 && G > B + 45 && R > 105 && B < 135) return true;
-      // 2. Red carpet stage floor (R > 145, G < 95, B < 95)
       if (R > 140 && R > G * 1.75 && R > B * 1.75) return true;
-      // 3. Dark stage border strip at bottom (R < 45, G < 45, B < 45)
       if (R < 42 && G < 42 && B < 42) return true;
       return false;
+    }
+
+    function getLimbSpatialWeight(x, y) {
+      // Boost left/right arm extension zones and upper/lower limb zones
+      const nx = x / GRID_W; // 0..1
+      const ny = y / GRID_H; // 0..1
+      const armBoost = (nx < 0.34 || nx > 0.66) ? 1.65 : 1.0;
+      const verticalBoost = (ny < 0.35 || ny > 0.65) ? 1.25 : 1.0;
+      return armBoost * verticalBoost;
     }
 
     function extractFeaturesFromImage(imgElement) {
@@ -726,7 +732,6 @@
           const G = raw[i * 4 + 1];
           const B = raw[i * 4 + 2];
 
-          // Red carpet check at bottom edge (y = 35..41)
           if (y >= 35 && y <= 41) {
             bottomChecked++;
             if (R > 125 && R > G * 1.55 && R > B * 1.55) {
@@ -734,26 +739,18 @@
             }
           }
 
-          // Character outfit color votes in central character zone
           if (y >= 4 && y <= 33 && x >= 7 && x <= 40) {
-            // Cyan / Sky Blue outfit (B)
             if (B > 165 && G > 135 && R < 115) {
               blueVotes++;
-            }
-            // Pink / Magenta outfit (P)
-            else if (R > 180 && B > 160 && G < 175 && (R - G) > 30) {
+            } else if (R > 180 && B > 160 && G < 175 && (R - G) > 30) {
               pinkVotes++;
-            }
-            // Golden Yellow / Orange outfit (Y)
-            else if (R > 185 && G > 125 && B < 95 && (R - B) > 105) {
+            } else if (R > 185 && G > 125 && B < 95 && (R - B) > 105) {
               yellowVotes++;
             }
           }
 
-          // Foreground mask: 0 for static green wall / red carpet, 1 for dancer body & limbs
           const isBg = isStaticBackgroundPixel(R, G, B);
-          // Also suppress outer left/right umbrella edges (x < 6 or x > 41)
-          const edgeWeight = (x < 6 || x > 41) ? 0.25 : 1.0;
+          const edgeWeight = (x < 5 || x > 42) ? 0.3 : 1.0;
           fgMask[i] = isBg ? 0.0 : edgeWeight;
 
           lum[i] = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
@@ -772,8 +769,6 @@
         else if (yellowVotes === maxColorVotes) detectedChar = 'Y';
       }
 
-      // Build feature vector purely from foreground silhouette + Sobel edge gradients
-      // 4 channels per pixel: [fgMask, edgeMag, fgColorDiff1, fgColorDiff2]
       const fgVec = new Float32Array(n * 4);
       let sum = 0;
 
@@ -781,16 +776,16 @@
         for (let x = 0; x < GRID_W; x++) {
           const i = y * GRID_W + x;
           const m = fgMask[i];
+          const w = getLimbSpatialWeight(x, y);
 
           const gx = (x < GRID_W - 1 ? lum[i + 1] : lum[i]) - (x > 0 ? lum[i - 1] : lum[i]);
           const gy = (y < GRID_H - 1 ? lum[i + GRID_W] : lum[i]) - (y > 0 ? lum[i - GRID_W] : lum[i]);
-          const edge = Math.sqrt(gx * gx + gy * gy) * (m > 0 ? 1.8 : 0.2);
+          const edge = Math.sqrt(gx * gx + gy * gy) * (m > 0 ? 1.8 : 0.25) * w;
 
-          // Silhouette presence + internal limb/head/tie contrast (zeroed out on background)
-          const c1 = m * (colorR[i] - colorG[i]);
-          const c2 = m * (colorB[i] - lum[i]);
+          const c1 = m * (colorR[i] - colorG[i]) * w;
+          const c2 = m * (colorB[i] - lum[i]) * w;
 
-          fgVec[i * 4] = m * 1.4;
+          fgVec[i * 4] = m * 1.4 * w;
           fgVec[i * 4 + 1] = edge;
           fgVec[i * 4 + 2] = c1;
           fgVec[i * 4 + 3] = c2;
@@ -799,7 +794,6 @@
         }
       }
 
-      // Zero-mean unit-norm normalization (Pearson Correlation) -> separates poses dramatically!
       const mean = sum / fgVec.length;
       let norm = 0;
       for (let i = 0; i < fgVec.length; i++) {
@@ -819,7 +813,6 @@
       for (let i = 0; i < vecA.length; i++) {
         dot += vecA[i] * vecB[i];
       }
-      // Direct positive correlation percentage (0%..100%) so dissimilar poses drop to 5~20%
       return Math.max(0, Math.min(100, dot * 100));
     }
 
@@ -922,7 +915,7 @@
     }
 
     // ==========================================
-    // 4. Auto Stage ROI Lock (Matched to User Reference Frame)
+    // 4. Auto Stage ROI Lock & Screen/Image Capture
     // ==========================================
     function getActiveSourceSize() {
       if (sourceMode === 'video' && video.readyState >= 2) {
@@ -934,7 +927,6 @@
       return null;
     }
 
-    // Matches exact box ratio in user's reference screenshot: (499, 174) 279x254 on 1280x960
     function autoLockStageROI() {
       const info = getActiveSourceSize();
       if (!info || info.w === 0 || info.h === 0) {
@@ -1156,7 +1148,7 @@
     }
 
     // ==========================================
-    // 5. Same-Color Character Locked & Foreground Silhouette Engine
+    // 5. Detection Engine
     // ==========================================
     function playBeep(freq) {
       if (!soundEnabled) return;
@@ -1195,7 +1187,6 @@
       const stageInfoEl = document.getElementById('stageInfo');
       const charLabelEl = document.getElementById('charDetectLabel');
 
-      // Gate 1: Require Red Carpet Stage at bottom of ROI AND valid MCJ character color
       const hasRedCarpet = currentFeat.redCarpetRatio >= 0.15;
       const hasCharacter = currentFeat.detectedChar !== null;
 
@@ -1216,7 +1207,6 @@
         return;
       }
 
-      // Strictly lock to ONLY the detected character color pool (B, P, or Y)
       const charCode = currentFeat.detectedChar;
       const sameColorPool = templates.filter(t => t.char === charCode);
 
@@ -1253,8 +1243,8 @@
 
       document.getElementById('leadInfo').textContent = `領先第2名: +${leadMargin.toFixed(1)}%`;
 
-      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 30;
-      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 6;
+      const threshold = parseFloat(document.getElementById('thresholdInput').value) || 55;
+      const reqMargin = parseFloat(document.getElementById('marginInput').value) || 0;
 
       if (top1.score >= threshold && leadMargin >= reqMargin) {
         const info = DIR_MAP[top1.dir];
@@ -1518,3 +1508,4 @@
   </script>
 </body>
 </html>
+```[cite: 44, 45, 46, 47]
