@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.7)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.8)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -723,6 +723,7 @@
     const MAX_COMBO = 6;
     const MAX_ROUNDS = 10;
     const STALE_CLEAR_MS = 5000;
+    const ROUND_RESET_IDLE_MS = 15000;
 
     const DIR_MAP = {
       U: {
@@ -806,6 +807,7 @@
     let candidateStreak = 0;
     let lastActionTimestamp = 0;
     let lastChangeTimestamp = 0;
+    let lastAnyRoundActivityTimestamp = 0;
     let roundFinished = false;
     let roundCount = 0;
     let currentRoundCounted = false;
@@ -1715,6 +1717,7 @@
         lastConfirmedDir = dir;
         lastActionTimestamp = now;
         lastChangeTimestamp = now;
+        lastAnyRoundActivityTimestamp = now;
         roundFinished = false;
         currentRoundCounted = false;
         renderComboUI();
@@ -1747,6 +1750,7 @@
         lastConfirmedDir = dir;
         lastActionTimestamp = now;
         lastChangeTimestamp = now;
+        lastAnyRoundActivityTimestamp = now;
         currentCombo.push({
           dir,
           sampleName,
@@ -1768,6 +1772,12 @@
       const bar = document.getElementById('timeoutBar');
       const countdown = document.getElementById('timeoutCountdown');
       const badge = document.getElementById('roundBadge');
+
+      if (roundCount > 0 && lastAnyRoundActivityTimestamp > 0 && (now - lastAnyRoundActivityTimestamp) >= ROUND_RESET_IDLE_MS) {
+        roundCount = 0;
+        lastAnyRoundActivityTimestamp = 0;
+        clearAllComboState();
+      }
 
       if (currentCombo.length > 0 && lastChangeTimestamp > 0 && (now - lastChangeTimestamp) >= STALE_CLEAR_MS) {
         clearAllComboState();
@@ -1809,6 +1819,7 @@
         if (!currentRoundCounted) {
           roundCount = Math.min(MAX_ROUNDS, roundCount + 1);
           currentRoundCounted = true;
+          lastAnyRoundActivityTimestamp = now;
         }
 
         const idleSec = Math.max(0, (STALE_CLEAR_MS - (now - lastChangeTimestamp)) / 1000);
@@ -1975,6 +1986,7 @@
 
     document.getElementById('clearComboBtn').addEventListener('click', () => {
       roundCount = 0;
+      lastAnyRoundActivityTimestamp = 0;
       clearAllComboState();
     });
 
