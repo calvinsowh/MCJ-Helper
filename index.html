@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.6)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v11.7)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -721,9 +721,9 @@
     const ALIGN_H = 88;
     const TARGET_LINE_Y = 68;
     const MAX_COMBO = 6;
+    const MAX_ROUNDS = 10;
     const STALE_CLEAR_MS = 5000;
 
-    // 上: 翠綠底色＋綠框 | 下: 琥珀金底色＋金框 | 左: 青藍底色＋青藍框 | 右: 桃粉底色＋粉框
     const DIR_MAP = {
       U: {
         label: '↑ 上',
@@ -807,6 +807,8 @@
     let lastActionTimestamp = 0;
     let lastChangeTimestamp = 0;
     let roundFinished = false;
+    let roundCount = 0;
+    let currentRoundCounted = false;
 
     const video = document.getElementById('sourceVideo');
     const gameCanvas = document.getElementById('gameCanvas');
@@ -834,6 +836,7 @@
       lastActionTimestamp = 0;
       lastChangeTimestamp = 0;
       roundFinished = false;
+      currentRoundCounted = false;
       renderComboUI();
     }
 
@@ -1713,6 +1716,7 @@
         lastActionTimestamp = now;
         lastChangeTimestamp = now;
         roundFinished = false;
+        currentRoundCounted = false;
         renderComboUI();
         return;
       }
@@ -1732,6 +1736,7 @@
         currentCombo = [];
         lastConfirmedDir = null;
         roundFinished = false;
+        currentRoundCounted = false;
       }
 
       if (dir === lastConfirmedDir) {
@@ -1799,6 +1804,11 @@
           badge.textContent = `狀態：不足 ${minComboReq} 個已過濾`;
           badge.style.color = '#94a3b8';
           return;
+        }
+
+        if (!currentRoundCounted) {
+          roundCount = Math.min(MAX_ROUNDS, roundCount + 1);
+          currentRoundCounted = true;
         }
 
         const idleSec = Math.max(0, (STALE_CLEAR_MS - (now - lastChangeTimestamp)) / 1000);
@@ -1883,12 +1893,11 @@
       pipCtx.strokeRect(1.5, 1.5, pipCanvas.width - 3, pipCanvas.height - 3);
 
       const canShow = shouldDisplayCombo();
+      const activeRound = Math.min(MAX_ROUNDS, roundCount + (currentCombo.length > 0 && !currentRoundCounted ? 1 : 0));
       pipCtx.fillStyle = '#93c5fd';
       pipCtx.font = '900 14px sans-serif';
       pipCtx.fillText(
-        roundFinished && canShow
-          ? `MCJ 本輪完成 (${currentCombo.length} 步)`
-          : `MCJ 即時偵測序列 (${canShow ? currentCombo.length : 0}/${MAX_COMBO})`,
+        `MCJ 即時偵測序列 (${canShow ? currentCombo.length : 0}/${MAX_COMBO}) | 回合: ${activeRound}/${MAX_ROUNDS}`,
         16, 26
       );
 
@@ -1965,6 +1974,7 @@
     });
 
     document.getElementById('clearComboBtn').addEventListener('click', () => {
+      roundCount = 0;
       clearAllComboState();
     });
 
