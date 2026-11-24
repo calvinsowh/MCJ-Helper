@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.4)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.5)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -1216,7 +1216,7 @@
     }
 
     function parseSampleFilename(filename) {
-      const parts = String(filename || '').split(/[/\]/);
+      const parts = String(filename || '').split(/[/\\]/);
       const clean = (parts[parts.length - 1] || '').trim().toUpperCase();
       if (clean.length < 2) return null;
       const charCode = clean[0];
@@ -1239,57 +1239,68 @@
     }
 
     document.getElementById('sampleInput').addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files || []);
-      if (!files.length) return;
+      try {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
 
-      const loaded = [];
-      for (const file of files) {
-        const meta = parseSampleFilename(file.name);
-        if (!meta) continue;
+        const loaded = [];
+        for (const file of files) {
+          const meta = parseSampleFilename(file.name);
+          if (!meta) continue;
 
-        const img = await new Promise((resolve) => {
-          const objUrl = URL.createObjectURL(file);
-          const image = new Image();
-          image.onload = () => {
-            URL.revokeObjectURL(objUrl);
-            resolve(image);
-          };
-          image.onerror = () => {
-            URL.revokeObjectURL(objUrl);
-            resolve(null);
-          };
-          image.src = objUrl;
-        });
-
-        if (img) {
-          const feat = extractFeaturesFromImage(img);
-          loaded.push({
-            ...meta,
-            fgVec: feat.fgVec,
-            shiftVecs: buildHorizontalShiftVectors(feat.fgVec)
+          const img = await new Promise((resolve) => {
+            const objUrl = URL.createObjectURL(file);
+            const image = new Image();
+            image.onload = () => {
+              URL.revokeObjectURL(objUrl);
+              resolve(image);
+            };
+            image.onerror = () => {
+              URL.revokeObjectURL(objUrl);
+              resolve(null);
+            };
+            image.src = objUrl;
           });
-        }
-      }
 
-      if (loaded.length > 0) {
-        const map = new Map(templates.map(t => [t.name, t]));
-        loaded.forEach(item => map.set(item.name, item));
-        templates = Array.from(map.values());
-        await saveSamplesToDB(templates);
-        updateSampleUI();
-        if (sourceMode === 'image') runDetectionStep(true);
-        alert(`成功匯入 ${loaded.length} 張樣本圖！（已完成背景基準線自動對齊）`);
-      } else {
-        alert('未找到符合命名規則的圖片（檔名第1字需為 B/P/Y，第2字需為 U/D/L/R 或 S）。');
+          if (img) {
+            const feat = extractFeaturesFromImage(img);
+            loaded.push({
+              ...meta,
+              fgVec: feat.fgVec,
+              shiftVecs: buildHorizontalShiftVectors(feat.fgVec)
+            });
+          }
+        }
+
+        if (loaded.length > 0) {
+          const map = new Map(templates.map(t => [t.name, t]));
+          loaded.forEach(item => map.set(item.name, item));
+          templates = Array.from(map.values());
+          try {
+            await saveSamplesToDB(templates);
+          } catch (dbErr) {
+            console.warn('IndexedDB 寫入失敗，改為記憶體暫存：', dbErr);
+          }
+          updateSampleUI();
+          if (sourceMode === 'image') runDetectionStep(true);
+          alert(`成功匯入 ${loaded.length} 張樣本圖！（已完成背景基準線自動對齊）`);
+        } else {
+          alert('未找到符合命名規則的圖片（檔名第1字需為 B/P/Y，第2字需為 U/D/L/R 或 S）。');
+        }
+      } catch (err) {
+        alert('匯入樣本時發生錯誤：' + (err && err.message ? err.message : err));
+      } finally {
+        e.target.value = '';
       }
-      e.target.value = '';
     });
 
     document.getElementById('clearSamplesBtn').addEventListener('click', async () => {
       if (!confirm('確定要清除已儲存的所有動作樣本嗎？')) return;
       templates = [];
       liveStandbyVec = null;
-      await clearSamplesDB();
+      try {
+        await clearSamplesDB();
+      } catch (_) {}
       updateSampleUI();
     });
 
@@ -1469,6 +1480,10 @@
 
     document.getElementById('shareBtn').addEventListener('click', async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          alert('目前環境不支援螢幕分享（請確保使用 HTTPS 或 localhost 開啟）。');
+          return;
+        }
         stopRecordingIfActive();
         if (stream) {
           stream.getTracks().forEach(t => t.stop());
@@ -1502,6 +1517,9 @@
         restartDetectionLoop();
         runDetectionStep(false);
       } catch (err) {
+        if (err && err.name !== 'NotAllowedError') {
+          alert('無法啟動視窗分享：' + (err.message || err));
+        }
         console.error(err);
       }
     });
@@ -1889,7 +1907,6 @@
 
         playBeep(DIR_MAP[dir].freq);
 
-        // 第 1–3 回合：偵測到頭 2 個動作後，自動馬上複製填入第 3 & 4 步
         if (upcomingRoundNum <= 3 && currentCombo.length === 2) {
           const step1 = currentCombo[0];
           const step2 = currentCombo[1];
