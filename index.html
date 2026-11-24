@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.2)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.4)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -551,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>未入舞台 3 秒低頻節能、入舞台即時提速、第 1–3 回合自動補全與彩色 ANS 懸浮窗</p>
+      <p>支援背景分頁偵測、可調式冷卻暫停、整數秒省電顯示、第 1–3 回合自動補全與彩色 ANS 懸浮窗</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -607,7 +607,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 未入舞台／無角色自動切為 3 秒偵測一次，入舞台即刻切回高速偵測
+3. 切換到其他分頁或收埋視窗後，依然會持續偵測並更新 PiP 懸浮窗
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -648,6 +648,10 @@
           <input type="number" id="timeoutInput" value="2.2" min="1.0" max="5.0" step="0.1" />
         </div>
         <div class="setting-item">
+          <label for="pauseInput">冷卻暫停 (秒)</label>
+          <input type="number" id="pauseInput" value="4.5" min="0" max="15.0" step="0.1" />
+        </div>
+        <div class="setting-item">
           <label for="soundToggle">偵測提示音效</label>
           <button id="soundToggle" style="justify-content: center; height: 29px;">🔊 音效：開啟</button>
         </div>
@@ -671,7 +675,7 @@
       <div class="timeout-wrapper">
         <div class="timeout-info">
           <span id="timeoutText">5 秒無新變化自動清除 ANS（少於最少 Combo 數會作廢）</span>
-          <span id="timeoutCountdown">0.0s</span>
+          <span id="timeoutCountdown">0s</span>
         </div>
         <div class="progress-bg">
           <div class="progress-fill" id="timeoutBar"></div>
@@ -724,8 +728,12 @@
     const MAX_ROUNDS = 10;
     const STALE_CLEAR_MS = 5000;
     const ROUND_RESET_IDLE_MS = 15000;
-    const POST_ROUND_PAUSE_MS = 4000;
-    const IDLE_DETECT_INTERVAL_MS = 3000; // 未入舞台／無角色時每 3 秒偵測一次
+    const IDLE_DETECT_INTERVAL_MS = 3000;
+
+    function getPostRoundPauseMs() {
+      const val = parseFloat(document.getElementById('pauseInput').value);
+      return Number.isNaN(val) || val < 0 ? 4500 : Math.round(val * 1000);
+    }
 
     const DIR_MAP = {
       U: {
@@ -816,6 +824,7 @@
     let currentRoundCounted = false;
     let pauseDetectionUntil = 0;
     let lastPipSignature = '';
+    let lastStatusUiSig = '';
     let isStageIdle = false;
 
     const video = document.getElementById('sourceVideo');
@@ -849,7 +858,6 @@
       return Math.min(MAX_ROUNDS, Math.max(1, roundCount));
     }
 
-    // 未入舞台／無角色時用 3000ms (3秒)；入舞台後統一跟隨設定框「偵測間隔 (秒)」
     function getDesiredIntervalMs() {
       if (isStageIdle) {
         return IDLE_DETECT_INTERVAL_MS;
@@ -1208,7 +1216,7 @@
     }
 
     function parseSampleFilename(filename) {
-      const parts = String(filename || '').split(/[/\\]/);
+      const parts = String(filename || '').split(/[/\]/);
       const clean = (parts[parts.length - 1] || '').trim().toUpperCase();
       if (clean.length < 2) return null;
       const charCode = clean[0];
@@ -1477,7 +1485,7 @@
         isStageIdle = false;
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '即時視窗分析 (待機 3s / 舞台高速)';
+        document.getElementById('modeLabel').textContent = '即時視窗分析 (背景持續偵測)';
 
         if (!roi) {
           autoLockStageROI();
@@ -1669,12 +1677,11 @@
     }
 
     function runDetectionStep(isManualTest = false) {
-      if (document.hidden && !isManualTest) return;
       if (templates.length === 0) return;
 
       const now = performance.now();
       if (!isManualTest && pauseDetectionUntil > now) {
-        const remPauseSec = ((pauseDetectionUntil - now) / 1000).toFixed(1);
+        const remPauseSec = Math.max(1, Math.ceil((pauseDetectionUntil - now) / 1000));
         document.getElementById('liveDir').textContent = `冷卻暫停 (${remPauseSec}s)`;
         document.getElementById('liveDir').className = 'detected-dir';
         document.getElementById('liveDir').style.color = '#93c5fd';
@@ -1691,7 +1698,6 @@
       const sh = roi ? roi.h : active.h;
       if (sw < 10 || sh < 10) return;
 
-      // 1. 快速檢查：未入舞台或無角色時直接跳過比對，並切為每 3 秒偵測一次
       const preCheck = quickStageAndCharCheck(active.src, sx, sy, sw, sh);
       if (!preCheck.ready) {
         candidateDir = null;
@@ -1724,13 +1730,11 @@
         return;
       }
 
-      // 一旦偵測到已入舞台且有角色，立即切返高速偵測間隔
       if (isStageIdle) {
         isStageIdle = false;
         syncDetectionIntervalIfNeeded();
       }
 
-      // 2. 執行背景基準線對齊與完整特徵比對
       const alignInfo = drawAlignedToProcCanvas(active.src, sx, sy, sw, sh);
       const currentFeat = extractFeaturesFromContext(procCtx);
 
@@ -1909,7 +1913,7 @@
           roundCount = upcomingRoundNum;
           currentRoundCounted = true;
           roundFinished = true;
-          pauseDetectionUntil = now + POST_ROUND_PAUSE_MS;
+          pauseDetectionUntil = now + getPostRoundPauseMs();
         }
 
         renderComboUI();
@@ -1918,14 +1922,25 @@
       }
     }
 
+    function setStatusUiIfChanged(barWidth, barBg, countdownText, badgeText, badgeColor) {
+      const sig = `${barWidth}|${barBg}|${countdownText}|${badgeText}|${badgeColor}`;
+      if (sig === lastStatusUiSig) return;
+      lastStatusUiSig = sig;
+      const bar = document.getElementById('timeoutBar');
+      const countdown = document.getElementById('timeoutCountdown');
+      const badge = document.getElementById('roundBadge');
+      bar.style.width = barWidth;
+      if (barBg) bar.style.background = barBg;
+      countdown.textContent = countdownText;
+      badge.textContent = badgeText;
+      badge.style.color = badgeColor;
+    }
+
     function updateTimeoutUI() {
       const now = performance.now();
       const timeoutSec = parseFloat(document.getElementById('timeoutInput').value) || 2.2;
       const timeoutMs = timeoutSec * 1000;
       const minComboReq = getMinComboReq();
-      const bar = document.getElementById('timeoutBar');
-      const countdown = document.getElementById('timeoutCountdown');
-      const badge = document.getElementById('roundBadge');
 
       if (roundCount > 0 && lastAnyRoundActivityTimestamp > 0 && (now - lastAnyRoundActivityTimestamp) >= ROUND_RESET_IDLE_MS) {
         roundCount = 0;
@@ -1938,41 +1953,33 @@
       if (currentCombo.length > 0 && lastChangeTimestamp > 0 && (now - lastChangeTimestamp) >= STALE_CLEAR_MS) {
         clearAllComboState();
         drawPiPCanvasIfChanged();
-        bar.style.width = '0%';
-        countdown.textContent = '5.0s 已清空';
-        badge.textContent = `狀態：5秒無變化已清除 (需≥${minComboReq}個)`;
-        badge.style.color = '#60a5fa';
+        setStatusUiIfChanged('0%', '', '5s 已清空', `狀態：5秒無變化已清除 (需≥${minComboReq}個)`, '#60a5fa');
         return;
       }
 
       if (sourceMode === 'image') {
-        bar.style.width = '100%';
-        bar.style.background = '#3b82f6';
-        countdown.textContent = '截圖測試中';
-        badge.textContent = '狀態：單張截圖測試';
-        badge.style.color = '#93c5fd';
+        setStatusUiIfChanged('100%', '#3b82f6', '截圖測試中', '狀態：單張截圖測試', '#93c5fd');
         return;
       }
 
       if (pauseDetectionUntil > now) {
-        const remSec = ((pauseDetectionUntil - now) / 1000).toFixed(1);
-        bar.style.width = '100%';
-        bar.style.background = '#3b82f6';
-        countdown.textContent = `暫停 ${remSec}s`;
-        badge.textContent = `狀態：冷卻暫停中 (${remSec}s)`;
-        badge.style.color = '#93c5fd';
+        const remSecInt = Math.max(1, Math.ceil((pauseDetectionUntil - now) / 1000));
+        setStatusUiIfChanged('100%', '#3b82f6', `暫停 ${remSecInt}s`, `狀態：冷卻暫停中 (${remSecInt}s)`, '#93c5fd');
         return;
       }
 
       if (currentCombo.length === 0) {
-        bar.style.width = '0%';
-        countdown.textContent = '0.0s';
         const nextRound = Math.min(MAX_ROUNDS, roundCount + 1);
         const nextTarget = getTargetStepsForRound(nextRound);
-        badge.textContent = isStageIdle
-          ? `狀態：待機省電 (每3秒掃描)`
-          : `狀態：第${nextRound}輪 目標${nextTarget}步 (${(currentIntervalMs / 1000).toFixed(2)}s)`;
-        badge.style.color = isStageIdle ? '#94a3b8' : '#60a5fa';
+        setStatusUiIfChanged(
+          '0%',
+          '',
+          '0s',
+          isStageIdle
+            ? `狀態：待機省電 (每3秒掃描)`
+            : `狀態：第${nextRound}輪 目標${nextTarget}步 (${(currentIntervalMs / 1000).toFixed(2)}s)`,
+          isStageIdle ? '#94a3b8' : '#60a5fa'
+        );
         return;
       }
 
@@ -1984,10 +1991,7 @@
         if (currentCombo.length < minComboReq) {
           clearAllComboState();
           drawPiPCanvasIfChanged();
-          bar.style.width = '0%';
-          countdown.textContent = '不足已作廢';
-          badge.textContent = `狀態：不足 ${minComboReq} 個已過濾`;
-          badge.style.color = '#94a3b8';
+          setStatusUiIfChanged('0%', '', '不足已作廢', `狀態：不足 ${minComboReq} 個已過濾`, '#94a3b8');
           return;
         }
 
@@ -1996,26 +2000,31 @@
           currentRoundCounted = true;
           lastAnyRoundActivityTimestamp = now;
           roundFinished = true;
-          const remPauseMs = Math.max(0, POST_ROUND_PAUSE_MS - timeoutMs);
+          const remPauseMs = Math.max(0, getPostRoundPauseMs() - timeoutMs);
           pauseDetectionUntil = now + remPauseMs;
           syncDetectionIntervalIfNeeded();
         }
 
-        const idleSec = Math.max(0, (STALE_CLEAR_MS - (now - lastChangeTimestamp)) / 1000);
-        bar.style.width = '100%';
-        bar.style.background = '#3b82f6';
-        countdown.textContent = `${idleSec.toFixed(1)}s 後清空`;
-        badge.textContent = `狀態：本輪完成 (${currentCombo.length}/${targetSteps}步)`;
-        badge.style.color = '#60a5fa';
+        const idleSecInt = Math.max(0, Math.ceil((STALE_CLEAR_MS - (now - lastChangeTimestamp)) / 1000));
+        setStatusUiIfChanged(
+          '100%',
+          '#3b82f6',
+          `${idleSecInt}s 後清空`,
+          `狀態：本輪完成 (${currentCombo.length}/${targetSteps}步)`,
+          '#60a5fa'
+        );
         renderComboUI();
         drawPiPCanvasIfChanged();
       } else {
-        const pct = (elapsed / timeoutMs) * 100;
-        bar.style.width = `${pct}%`;
-        bar.style.background = '#f59e0b';
-        countdown.textContent = `${((timeoutMs - elapsed) / 1000).toFixed(1)}s`;
-        badge.textContent = `狀態：第${activeRound}輪 (${currentCombo.length}/${targetSteps}步 | ${(currentIntervalMs / 1000).toFixed(2)}s)`;
-        badge.style.color = '#fbbf24';
+        const pct = Math.round((elapsed / timeoutMs) * 100);
+        const remTimeoutInt = Math.max(1, Math.ceil((timeoutMs - elapsed) / 1000));
+        setStatusUiIfChanged(
+          `${pct}%`,
+          '#f59e0b',
+          `${remTimeoutInt}s`,
+          `狀態：第${activeRound}輪 (${currentCombo.length}/${targetSteps}步 | ${(currentIntervalMs / 1000).toFixed(2)}s)`,
+          '#fbbf24'
+        );
       }
     }
 
