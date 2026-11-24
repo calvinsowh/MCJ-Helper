@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.6)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.7)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -551,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>支援背景分頁偵測、可調式冷卻暫停、左上角置頂懸浮窗、第 1–3 回合自動補全與彩色 ANS</p>
+      <p>背景省電渲染、24×22 快速初篩、10 秒看門狗保活、第 1–3 回合自動補全與左上角 PiP</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -607,7 +607,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 切換到其他分頁或收埋視窗後，依然會持續偵測並更新左上角 PiP 懸浮窗
+3. 切換到其他分頁或收埋視窗後，看門狗會自動保活串流並更新左上角 PiP 懸浮窗
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -713,6 +713,7 @@
   <!-- Hidden elements -->
   <video id="sourceVideo" autoplay playsinline muted style="display: none;"></video>
   <canvas id="alignCanvas" width="96" height="88" style="display: none;"></canvas>
+  <canvas id="preCheckCanvas" width="24" height="22" style="display: none;"></canvas>
   <canvas id="procCanvas" width="48" height="44" style="display: none;"></canvas>
   <canvas id="exportCropCanvas" style="display: none;"></canvas>
   <div id="pipHolder" style="display: none;">
@@ -723,6 +724,8 @@
   <script>
     const GRID_W = 48;
     const GRID_H = 44;
+    const PRE_W = 24;
+    const PRE_H = 22;
     const ALIGN_W = 96;
     const ALIGN_H = 88;
     const TARGET_LINE_Y = 68;
@@ -731,6 +734,7 @@
     const STALE_CLEAR_MS = 5000;
     const ROUND_RESET_IDLE_MS = 15000;
     const IDLE_DETECT_INTERVAL_MS = 3000;
+    const WATCHDOG_INTERVAL_MS = 10000;
 
     // 左上角彈出位置偏移量 (px)
     const PIP_OFFSET_X = 24;
@@ -806,6 +810,8 @@
     let testImage = null;
     let sourceMode = 'none';
     let detectTimer = null;
+    let backgroundUiTimer = null;
+    let watchdogTimer = null;
     let currentIntervalMs = 150;
     let renderLoopStarted = false;
     let soundEnabled = true;
@@ -839,6 +845,8 @@
     const ctx = gameCanvas.getContext('2d');
     const alignCanvas = document.getElementById('alignCanvas');
     const alignCtx = alignCanvas.getContext('2d', { willReadFrequently: true });
+    const preCheckCanvas = document.getElementById('preCheckCanvas');
+    const preCheckCtx = preCheckCanvas.getContext('2d', { willReadFrequently: true });
     const procCanvas = document.getElementById('procCanvas');
     const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
     const exportCropCanvas = document.getElementById('exportCropCanvas');
@@ -968,10 +976,14 @@
       return posWeight;
     }
 
+    /**
+     * 24x22 輕量初篩：僅 528 像素，快速檢查是否有紅地毯與 B/P/Y 角色像素。
+     * 未入舞台或無角色時直接跳過完整對齊與特徵向量計算，大幅減低 CPU。
+     */
     function quickStageAndCharCheck(source, sx, sy, sw, sh) {
-      procCtx.clearRect(0, 0, GRID_W, GRID_H);
-      procCtx.drawImage(source, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
-      const raw = procCtx.getImageData(0, 0, GRID_W, GRID_H).data;
+      preCheckCtx.clearRect(0, 0, PRE_W, PRE_H);
+      preCheckCtx.drawImage(source, sx, sy, sw, sh, 0, 0, PRE_W, PRE_H);
+      const raw = preCheckCtx.getImageData(0, 0, PRE_W, PRE_H).data;
 
       let redCarpetPixels = 0;
       let bottomChecked = 0;
@@ -979,10 +991,10 @@
       let pinkVotes = 0;
       let yellowVotes = 0;
 
-      for (let y = 31; y <= 42; y++) {
-        for (let x = 0; x < GRID_W; x++) {
+      for (let y = 15; y <= 21; y++) {
+        for (let x = 0; x < PRE_W; x++) {
           bottomChecked++;
-          const idx = (y * GRID_W + x) * 4;
+          const idx = (y * PRE_W + x) * 4;
           const R = raw[idx], G = raw[idx + 1], B = raw[idx + 2];
           if (R > 125 && R > G * 1.5 && R > B * 1.5) {
             redCarpetPixels++;
@@ -995,9 +1007,9 @@
         return { ready: false, redCarpetRatio, maxColorVotes: 0 };
       }
 
-      for (let y = 4; y <= 33; y++) {
-        for (let x = 9; x <= 38; x++) {
-          const idx = (y * GRID_W + x) * 4;
+      for (let y = 2; y <= 16; y++) {
+        for (let x = 4; x <= 19; x++) {
+          const idx = (y * PRE_W + x) * 4;
           const R = raw[idx], G = raw[idx + 1], B = raw[idx + 2];
           if (B > 160 && G > 130 && R < 120) {
             blueVotes++;
@@ -1009,12 +1021,13 @@
         }
       }
 
+      // 24x22 像素數為 48x44 的 1/4，對應門檻按比例設為 2 票
       const maxColorVotes = Math.max(blueVotes, pinkVotes, yellowVotes);
-      if (maxColorVotes < 8) {
+      if (maxColorVotes < 2) {
         return { ready: false, redCarpetRatio, maxColorVotes };
       }
 
-      return { ready: true, redCarpetRatio, maxColorVotes };
+      return { ready: true, redCarpetRatio, maxColorVotes: maxColorVotes * 4 };
     }
 
     function drawAlignedToProcCanvas(source, sx, sy, sw, sh) {
@@ -1223,7 +1236,7 @@
     }
 
     function parseSampleFilename(filename) {
-      const parts = String(filename || '').split(/[/\\]/);
+      const parts = String(filename || '').split(/[/\]/);
       const clean = (parts[parts.length - 1] || '').trim().toUpperCase();
       if (clean.length < 2) return null;
       const charCode = clean[0];
@@ -1449,8 +1462,14 @@
     });
 
     function getActiveSourceSize() {
-      if (sourceMode === 'video' && video.readyState >= 2) {
-        return { src: video, w: video.videoWidth, h: video.videoHeight };
+      if (sourceMode === 'video') {
+        if (video.paused && stream && stream.active) {
+          video.play().catch(() => {});
+        }
+        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+          return { src: video, w: video.videoWidth, h: video.videoHeight };
+        }
+        return null;
       }
       if (sourceMode === 'image' && testImage) {
         return { src: testImage, w: testImage.width, h: testImage.height };
@@ -1507,7 +1526,7 @@
         isStageIdle = false;
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '即時視窗分析 (背景持續偵測)';
+        document.getElementById('modeLabel').textContent = '即時視窗分析 (背景省電＋看門狗)';
 
         if (!roi) {
           autoLockStageROI();
@@ -1521,6 +1540,8 @@
         };
 
         ensureRenderLoop();
+        ensureBackgroundUiLoop();
+        ensureWatchdogLoop();
         restartDetectionLoop();
         runDetectionStep(false);
       } catch (err) {
@@ -1559,6 +1580,7 @@
         }
 
         ensureRenderLoop();
+        ensureBackgroundUiLoop();
         runDetectionStep(true);
       };
       img.src = URL.createObjectURL(file);
@@ -1649,39 +1671,71 @@
       renderLoopStarted = true;
 
       function render() {
-        const active = getActiveSourceSize();
-        if (active && active.w > 0 && active.h > 0) {
-          if (gameCanvas.width !== active.w || gameCanvas.height !== active.h) {
-            gameCanvas.width = active.w;
-            gameCanvas.height = active.h;
+        // 分頁在背景時跳過主畫布渲染以減低背景 CPU/GPU 負擔，由 backgroundUiTimer 負責倒數與 PiP
+        if (!document.hidden) {
+          const active = getActiveSourceSize();
+          if (active && active.w > 0 && active.h > 0) {
+            if (gameCanvas.width !== active.w || gameCanvas.height !== active.h) {
+              gameCanvas.width = active.w;
+              gameCanvas.height = active.h;
+            }
+            ctx.drawImage(active.src, 0, 0, gameCanvas.width, gameCanvas.height);
+
+            if (roi && roi.w > 0 && roi.h > 0) {
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+              ctx.fillRect(0, 0, gameCanvas.width, roi.y);
+              ctx.fillRect(0, roi.y + roi.h, gameCanvas.width, gameCanvas.height - (roi.y + roi.h));
+              ctx.fillRect(0, roi.y, roi.x, roi.h);
+              ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
+
+              const lineW = Math.max(3, Math.round(gameCanvas.width / 350));
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = lineW;
+              ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+
+              ctx.fillStyle = '#10b981';
+              ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 145, 22);
+              ctx.fillStyle = '#042f2e';
+              ctx.font = 'bold 13px sans-serif';
+              ctx.fillText('舞台框 (自動水平對齊)', roi.x + 8, Math.max(15, roi.y - 6));
+            }
           }
-          ctx.drawImage(active.src, 0, 0, gameCanvas.width, gameCanvas.height);
-
-          if (roi && roi.w > 0 && roi.h > 0) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-            ctx.fillRect(0, 0, gameCanvas.width, roi.y);
-            ctx.fillRect(0, roi.y + roi.h, gameCanvas.width, gameCanvas.height - (roi.y + roi.h));
-            ctx.fillRect(0, roi.y, roi.x, roi.h);
-            ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
-
-            const lineW = Math.max(3, Math.round(gameCanvas.width / 350));
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = lineW;
-            ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
-
-            ctx.fillStyle = '#10b981';
-            ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 145, 22);
-            ctx.fillStyle = '#042f2e';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.fillText('舞台框 (自動水平對齊)', roi.x + 8, Math.max(15, roi.y - 6));
-          }
+          updateTimeoutUI();
+          drawPiPCanvasIfChanged();
         }
-
-        updateTimeoutUI();
-        drawPiPCanvasIfChanged();
         requestAnimationFrame(render);
       }
       requestAnimationFrame(render);
+    }
+
+    // 獨立背景計時器：即使 rAF 在背景分頁被節流，仍穩定更新倒數與 PiP 畫面
+    function ensureBackgroundUiLoop() {
+      if (backgroundUiTimer) return;
+      backgroundUiTimer = setInterval(() => {
+        updateTimeoutUI();
+        drawPiPCanvasIfChanged();
+      }, 250);
+    }
+
+    // 每 10 秒看門狗：確保背景掛機時影片串流未被暫停、偵測計時器正常運作
+    function ensureWatchdogLoop() {
+      if (watchdogTimer) return;
+      watchdogTimer = setInterval(() => {
+        if (sourceMode !== 'video') return;
+        const track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+        if (!track || track.readyState !== 'live') {
+          stopDetectionLoop();
+          sourceMode = 'none';
+          document.getElementById('stageInfo').textContent = '舞台狀態：視窗分享已結束';
+          return;
+        }
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+        if (!detectTimer) {
+          restartDetectionLoop();
+        }
+      }, WATCHDOG_INTERVAL_MS);
     }
 
     function playBeep(freq) {
@@ -2161,7 +2215,6 @@
 
     document.getElementById('pipBtn').addEventListener('click', async () => {
       try {
-        // 1. 優先使用 Document Picture-in-Picture（可精準定位到螢幕左上角＋偏移量）
         if ('documentPictureInPicture' in window) {
           if (docPipWindow && !docPipWindow.closed) {
             docPipWindow.close();
@@ -2176,7 +2229,6 @@
           });
           docPipWindow = pipWin;
 
-          // 設定黑色背景並將 pipCanvas 移入懸浮視窗
           pipWin.document.body.style.margin = '0';
           pipWin.document.body.style.background = '#071121';
           pipWin.document.body.style.overflow = 'hidden';
@@ -2187,7 +2239,6 @@
           pipCanvas.style.height = '100%';
           pipWin.document.body.appendChild(pipCanvas);
 
-          // 定位到螢幕左上角 + Offset (24px, 24px)
           const targetX = (window.screen.availLeft || 0) + PIP_OFFSET_X;
           const targetY = (window.screen.availTop || 0) + PIP_OFFSET_Y;
           try {
@@ -2203,7 +2254,6 @@
           return;
         }
 
-        // 2. 後備方案：傳統 Video PiP（若瀏覽器未支援 Document PiP）
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
           return;
