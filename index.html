@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.1)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.2)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -551,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>背景水平基準線自動對齊、第 1–3 回合自動補全第 3–4 步、未入舞台跳過比對與彩色 ANS 懸浮窗</p>
+      <p>未入舞台 3 秒低頻節能、入舞台即時提速、第 1–3 回合自動補全與彩色 ANS 懸浮窗</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -607,7 +607,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 第 1–3 回合偵測到頭 2 步即自動複製補全第 3、4 步並進入冷卻暫停
+3. 未入舞台／無角色自動切為 3 秒偵測一次，入舞台即刻切回高速偵測
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -725,6 +725,7 @@
     const STALE_CLEAR_MS = 5000;
     const ROUND_RESET_IDLE_MS = 15000;
     const POST_ROUND_PAUSE_MS = 4000;
+    const IDLE_DETECT_INTERVAL_MS = 3000; // 未入舞台／無角色時每 3 秒偵測一次
 
     const DIR_MAP = {
       U: {
@@ -835,7 +836,6 @@
       return Number.isNaN(val) || val < 1 ? 2 : val;
     }
 
-    // 第 1–3 回合：4 步（前2步偵測 + 後2步自動補全）；第 4–7 回合：5 步；第 8–10 回合：6 步
     function getTargetStepsForRound(nextRoundNum) {
       if (nextRoundNum <= 3) return 4;
       if (nextRoundNum <= 7) return 5;
@@ -849,8 +849,11 @@
       return Math.min(MAX_ROUNDS, Math.max(1, roundCount));
     }
 
-    // 全部回合統一跟隨設定框入面填嘅「偵測間隔 (秒)」
+    // 未入舞台／無角色時用 3000ms (3秒)；入舞台後統一跟隨設定框「偵測間隔 (秒)」
     function getDesiredIntervalMs() {
+      if (isStageIdle) {
+        return IDLE_DETECT_INTERVAL_MS;
+      }
       const settingSec = parseFloat(document.getElementById('intervalInput').value) || 0.15;
       return Math.max(50, Math.round(settingSec * 1000));
     }
@@ -950,10 +953,6 @@
       return posWeight;
     }
 
-    /**
-     * 極輕量快速預檢：先畫到 48x44 檢查是否有紅地毯與 B/P/Y 角色像素。
-     * 若未入舞台或無角色，直接跳過對齊與 4 通道特徵向量計算，大幅節省 CPU。
-     */
     function quickStageAndCharCheck(source, sx, sy, sw, sh) {
       procCtx.clearRect(0, 0, GRID_W, GRID_H);
       procCtx.drawImage(source, sx, sy, sw, sh, 0, 0, GRID_W, GRID_H);
@@ -1209,7 +1208,7 @@
     }
 
     function parseSampleFilename(filename) {
-      const parts = String(filename || '').split(/[/\]/);
+      const parts = String(filename || '').split(/[/\\]/);
       const clean = (parts[parts.length - 1] || '').trim().toUpperCase();
       if (clean.length < 2) return null;
       const charCode = clean[0];
@@ -1478,7 +1477,7 @@
         isStageIdle = false;
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '即時視窗分析 (智能節能＋自動補全)';
+        document.getElementById('modeLabel').textContent = '即時視窗分析 (待機 3s / 舞台高速)';
 
         if (!roi) {
           autoLockStageROI();
@@ -1493,6 +1492,7 @@
 
         ensureRenderLoop();
         restartDetectionLoop();
+        runDetectionStep(false);
       } catch (err) {
         console.error(err);
       }
@@ -1645,7 +1645,6 @@
         }
 
         updateTimeoutUI();
-        // 只有狀態改變時先會實際重繪 PiP Canvas，極致節省 CPU
         drawPiPCanvasIfChanged();
         requestAnimationFrame(render);
       }
@@ -1692,7 +1691,7 @@
       const sh = roi ? roi.h : active.h;
       if (sw < 10 || sh < 10) return;
 
-      // 1. 快速檢查：未入舞台或無角色時直接跳過對齊與比對，節省 CPU
+      // 1. 快速檢查：未入舞台或無角色時直接跳過比對，並切為每 3 秒偵測一次
       const preCheck = quickStageAndCharCheck(active.src, sx, sy, sw, sh);
       if (!preCheck.ready) {
         candidateDir = null;
@@ -1700,16 +1699,18 @@
 
         if (!isStageIdle || isManualTest) {
           isStageIdle = true;
+          syncDetectionIntervalIfNeeded();
+
           const liveDirEl = document.getElementById('liveDir');
           const liveMetaEl = document.getElementById('liveMeta');
           const stageInfoEl = document.getElementById('stageInfo');
           const charLabelEl = document.getElementById('charDetectLabel');
 
-          liveDirEl.textContent = '等待進入舞台';
+          liveDirEl.textContent = '待機省電 (每3秒)';
           liveDirEl.className = 'detected-dir';
           liveDirEl.style.color = '#64748b';
           liveMetaEl.textContent = `紅地毯: ${(preCheck.redCarpetRatio * 100).toFixed(0)}% | 角色像素: ${preCheck.maxColorVotes}`;
-          stageInfoEl.textContent = '舞台狀態：未偵測到 MCJ 舞台與角色（已跳過比對）';
+          stageInfoEl.textContent = '舞台狀態：未偵測到 MCJ 舞台與角色（每 3 秒掃描一次）';
           stageInfoEl.style.color = '#94a3b8';
           charLabelEl.textContent = '同色系角色比對池（角色鎖定：未偵測）：';
           document.getElementById('anchorInfo').textContent = '基準線: --';
@@ -1723,9 +1724,13 @@
         return;
       }
 
-      isStageIdle = false;
+      // 一旦偵測到已入舞台且有角色，立即切返高速偵測間隔
+      if (isStageIdle) {
+        isStageIdle = false;
+        syncDetectionIntervalIfNeeded();
+      }
 
-      // 2. 確認已入舞台且有角色，執行背景基準線對齊與完整特徵比對
+      // 2. 執行背景基準線對齊與完整特徵比對
       const alignInfo = drawAlignedToProcCanvas(active.src, sx, sy, sw, sh);
       const currentFeat = extractFeaturesFromContext(procCtx);
 
@@ -1880,7 +1885,7 @@
 
         playBeep(DIR_MAP[dir].freq);
 
-        // 第 1–3 回合：偵測到頭 2 個動作後，自動馬上複製填入第 3 & 4 步（例如：左右 -> 左右左右）
+        // 第 1–3 回合：偵測到頭 2 個動作後，自動馬上複製填入第 3 & 4 步
         if (upcomingRoundNum <= 3 && currentCombo.length === 2) {
           const step1 = currentCombo[0];
           const step2 = currentCombo[1];
@@ -1900,7 +1905,6 @@
           });
         }
 
-        // 偵測到該回合相應步數後，立即完成本輪並暫停偵測 4 秒
         if (currentCombo.length >= targetSteps) {
           roundCount = upcomingRoundNum;
           currentRoundCounted = true;
@@ -1965,8 +1969,10 @@
         countdown.textContent = '0.0s';
         const nextRound = Math.min(MAX_ROUNDS, roundCount + 1);
         const nextTarget = getTargetStepsForRound(nextRound);
-        badge.textContent = `狀態：第${nextRound}輪 目標${nextTarget}步 (${(currentIntervalMs / 1000).toFixed(2)}s)`;
-        badge.style.color = '#60a5fa';
+        badge.textContent = isStageIdle
+          ? `狀態：待機省電 (每3秒掃描)`
+          : `狀態：第${nextRound}輪 目標${nextTarget}步 (${(currentIntervalMs / 1000).toFixed(2)}s)`;
+        badge.style.color = isStageIdle ? '#94a3b8' : '#60a5fa';
         return;
       }
 
