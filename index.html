@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.5)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.6)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -551,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>支援背景分頁偵測、可調式冷卻暫停、整數秒省電顯示、第 1–3 回合自動補全與彩色 ANS 懸浮窗</p>
+      <p>支援背景分頁偵測、可調式冷卻暫停、左上角置頂懸浮窗、第 1–3 回合自動補全與彩色 ANS</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -562,7 +562,7 @@
         <input type="file" id="sampleInput" accept="image/*" multiple />
       </label>
       <button class="danger" id="clearSamplesBtn" title="清除瀏覽器內儲存的樣本">🗑️ 重置樣本</button>
-      <button id="pipBtn" title="彈出置頂小視窗，方便疊在遊戲旁邊">🪟 置頂懸浮窗 (PiP)</button>
+      <button id="pipBtn" title="彈出置頂小視窗於螢幕左上角，方便疊在遊戲旁邊">🪟 置頂懸浮窗 (PiP)</button>
     </div>
   </header>
 
@@ -607,7 +607,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 切換到其他分頁或收埋視窗後，依然會持續偵測並更新 PiP 懸浮窗
+3. 切換到其他分頁或收埋視窗後，依然會持續偵測並更新左上角 PiP 懸浮窗
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -715,7 +715,9 @@
   <canvas id="alignCanvas" width="96" height="88" style="display: none;"></canvas>
   <canvas id="procCanvas" width="48" height="44" style="display: none;"></canvas>
   <canvas id="exportCropCanvas" style="display: none;"></canvas>
-  <canvas id="pipCanvas" width="420" height="160" style="display: none;"></canvas>
+  <div id="pipHolder" style="display: none;">
+    <canvas id="pipCanvas" width="420" height="160"></canvas>
+  </div>
   <video id="pipVideo" autoplay muted playsinline style="display: none;"></video>
 
   <script>
@@ -729,6 +731,10 @@
     const STALE_CLEAR_MS = 5000;
     const ROUND_RESET_IDLE_MS = 15000;
     const IDLE_DETECT_INTERVAL_MS = 3000;
+
+    // 左上角彈出位置偏移量 (px)
+    const PIP_OFFSET_X = 24;
+    const PIP_OFFSET_Y = 24;
 
     function getPostRoundPauseMs() {
       const val = parseFloat(document.getElementById('pauseInput').value);
@@ -826,6 +832,7 @@
     let lastPipSignature = '';
     let lastStatusUiSig = '';
     let isStageIdle = false;
+    let docPipWindow = null;
 
     const video = document.getElementById('sourceVideo');
     const gameCanvas = document.getElementById('gameCanvas');
@@ -2097,6 +2104,7 @@
       }
     }
 
+    const pipHolder = document.getElementById('pipHolder');
     const pipCanvas = document.getElementById('pipCanvas');
     const pipCtx = pipCanvas.getContext('2d');
     const pipVideo = document.getElementById('pipVideo');
@@ -2153,6 +2161,49 @@
 
     document.getElementById('pipBtn').addEventListener('click', async () => {
       try {
+        // 1. 優先使用 Document Picture-in-Picture（可精準定位到螢幕左上角＋偏移量）
+        if ('documentPictureInPicture' in window) {
+          if (docPipWindow && !docPipWindow.closed) {
+            docPipWindow.close();
+            docPipWindow = null;
+            return;
+          }
+
+          drawPiPCanvasIfChanged(true);
+          const pipWin = await window.documentPictureInPicture.requestWindow({
+            width: pipCanvas.width,
+            height: pipCanvas.height
+          });
+          docPipWindow = pipWin;
+
+          // 設定黑色背景並將 pipCanvas 移入懸浮視窗
+          pipWin.document.body.style.margin = '0';
+          pipWin.document.body.style.background = '#071121';
+          pipWin.document.body.style.overflow = 'hidden';
+          pipWin.document.body.style.display = 'flex';
+          pipWin.document.body.style.alignItems = 'center';
+          pipWin.document.body.style.justifyContent = 'center';
+          pipCanvas.style.width = '100%';
+          pipCanvas.style.height = '100%';
+          pipWin.document.body.appendChild(pipCanvas);
+
+          // 定位到螢幕左上角 + Offset (24px, 24px)
+          const targetX = (window.screen.availLeft || 0) + PIP_OFFSET_X;
+          const targetY = (window.screen.availTop || 0) + PIP_OFFSET_Y;
+          try {
+            pipWin.moveTo(targetX, targetY);
+          } catch (_) {}
+
+          pipWin.addEventListener('pagehide', () => {
+            pipCanvas.style.width = '';
+            pipCanvas.style.height = '';
+            pipHolder.appendChild(pipCanvas);
+            docPipWindow = null;
+          });
+          return;
+        }
+
+        // 2. 後備方案：傳統 Video PiP（若瀏覽器未支援 Document PiP）
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
           return;
@@ -2162,7 +2213,7 @@
         await pipVideo.play();
         await pipVideo.requestPictureInPicture();
       } catch (err) {
-        alert('你的瀏覽器不支援畫中畫懸浮窗，或請先載入畫面。');
+        alert('無法開啟置頂懸浮窗：' + (err && err.message ? err.message : err));
       }
     });
 
