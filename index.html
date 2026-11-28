@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.8)</title>
+  <title>跑Online MCJ 一起共舞視覺偵測助手 (v12.9)</title>
   <style>
     :root {
       --bg-dark: #070e18;
@@ -551,7 +551,7 @@
   <header>
     <div class="title-group">
       <h1>💃 跑Online MCJ 一起共舞視覺偵測助手</h1>
-      <p>背景省電渲染、24×22 快速初篩、10 秒看門狗保活、第 1–3 回合自動補全與左上角 PiP</p>
+      <p>鎖框僅顯示框內畫面、10fps 省電預覽、10 秒看門狗保活與左上角 PiP 懸浮窗</p>
     </div>
     <div class="header-actions">
       <span id="sampleStatus" style="font-size: 0.8rem; color: #e2e8f0; font-weight: 800;">
@@ -579,6 +579,7 @@
             <input type="file" id="testImageInput" accept="image/*" />
           </label>
           <button class="auto-btn" id="autoLockBtn" title="自動套用標準紅毯舞台偵測框">🎯 自動框定舞台</button>
+          <button class="secondary-blue" id="cropViewToggleBtn" title="鎖框後隱藏框外全畫面，大幅減低 CPU/GPU 負擔">✂️ 僅顯示框內：開</button>
           <button id="resetRoiBtn">🔄 重設框選</button>
         </div>
       </div>
@@ -607,7 +608,7 @@
         <div class="placeholder-text" id="placeholderText">
 1. 確認右上角已載入動作樣本（支援匯入 <code>YS_*.png</code> 作為企直排除樣本）<br />
 2. 點擊「<strong>選擇遊戲視窗</strong>」或「<strong>載入測試截圖</strong>」<br />
-3. 切換到其他分頁或收埋視窗後，看門狗會自動保活串流並更新左上角 PiP 懸浮窗
+3. 鎖定舞台框後自動隱藏框外畫面，主預覽降為 10fps，極致減低 CPU 佔用
         </div>
         <canvas id="gameCanvas"></canvas>
         <div class="live-badge" id="liveBadge" style="display: none;">
@@ -735,6 +736,7 @@
     const ROUND_RESET_IDLE_MS = 15000;
     const IDLE_DETECT_INTERVAL_MS = 3000;
     const WATCHDOG_INTERVAL_MS = 10000;
+    const PREVIEW_FPS_INTERVAL_MS = 100; // 主預覽畫布限制 10fps，極致減低 CPU/GPU 負擔（不影響偵測）
 
     // 左上角彈出位置偏移量 (px)
     const PIP_OFFSET_X = 24;
@@ -814,7 +816,9 @@
     let watchdogTimer = null;
     let currentIntervalMs = 150;
     let renderLoopStarted = false;
+    let lastPreviewRenderTime = 0;
     let soundEnabled = true;
+    let cropOnlyPreview = true; // 鎖框後僅顯示框內局部畫面
 
     let mediaRecorder = null;
     let recordedChunks = [];
@@ -842,7 +846,7 @@
 
     const video = document.getElementById('sourceVideo');
     const gameCanvas = document.getElementById('gameCanvas');
-    const ctx = gameCanvas.getContext('2d');
+    const ctx = gameCanvas.getContext('2d', { alpha: false });
     const alignCanvas = document.getElementById('alignCanvas');
     const alignCtx = alignCanvas.getContext('2d', { willReadFrequently: true });
     const preCheckCanvas = document.getElementById('preCheckCanvas');
@@ -1492,6 +1496,7 @@
       };
 
       updateRoiInfo();
+      forcePreviewRedraw();
       if (sourceMode === 'image') {
         runDetectionStep(true);
       }
@@ -1510,7 +1515,7 @@
           stream.getTracks().forEach(t => t.stop());
         }
         stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: 'never', frameRate: 60 },
+          video: { cursor: 'never', frameRate: { ideal: 30, max: 30 } },
           audio: false
         });
         video.srcObject = stream;
@@ -1521,7 +1526,7 @@
         isStageIdle = false;
         document.getElementById('placeholderText').style.display = 'none';
         document.getElementById('liveBadge').style.display = 'block';
-        document.getElementById('modeLabel').textContent = '即時視窗分析 (背景省電＋看門狗)';
+        document.getElementById('modeLabel').textContent = '即時視窗分析 (極致省電模式)';
 
         if (!roi) {
           autoLockStageROI();
@@ -1576,11 +1581,16 @@
 
         ensureRenderLoop();
         ensureBackgroundUiLoop();
+        forcePreviewRedraw();
         runDetectionStep(true);
       };
       img.src = URL.createObjectURL(file);
       e.target.value = '';
     });
+
+    function isShowingCroppedOnly() {
+      return Boolean(cropOnlyPreview && roi && roi.w > 0 && roi.h > 0 && !isDragging);
+    }
 
     function getCanvasMousePos(e) {
       const rect = gameCanvas.getBoundingClientRect();
@@ -1611,9 +1621,16 @@
 
     gameCanvas.addEventListener('mousedown', (e) => {
       if (sourceMode === 'none') return;
+      // 若目前處於「僅顯示框內」模式，點擊拖拉前先自動切回全畫面座標系以便重新框選
+      if (isShowingCroppedOnly()) {
+        cropOnlyPreview = false;
+        updateCropViewToggleUI();
+        drawPreviewFrame(getActiveSourceSize());
+      }
       isDragging = true;
       dragStart = getCanvasMousePos(e);
       roi = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+      forcePreviewRedraw();
     });
 
     gameCanvas.addEventListener('mousemove', (e) => {
@@ -1626,6 +1643,7 @@
         h: Math.abs(curr.y - dragStart.y)
       };
       updateRoiInfo();
+      forcePreviewRedraw();
     });
 
     window.addEventListener('mouseup', () => {
@@ -1633,17 +1651,34 @@
       isDragging = false;
       if (roi && (roi.w < 15 || roi.h < 15)) {
         roi = null;
+      } else if (roi) {
+        // 拉完新框後自動開啟「僅顯示框內」慳 CPU
+        cropOnlyPreview = true;
+        updateCropViewToggleUI();
       }
       updateRoiInfo();
+      forcePreviewRedraw();
       if (sourceMode === 'image') {
         clearAllComboState();
         runDetectionStep(true);
       }
     });
 
+    function updateCropViewToggleUI() {
+      const btn = document.getElementById('cropViewToggleBtn');
+      btn.textContent = cropOnlyPreview ? '✂️ 僅顯示框內：開' : '🖼️ 僅顯示框內：關';
+    }
+
+    document.getElementById('cropViewToggleBtn').addEventListener('click', () => {
+      cropOnlyPreview = !cropOnlyPreview;
+      updateCropViewToggleUI();
+      forcePreviewRedraw();
+    });
+
     document.getElementById('resetRoiBtn').addEventListener('click', () => {
       roi = null;
       updateRoiInfo();
+      forcePreviewRedraw();
       if (sourceMode === 'image') {
         clearAllComboState();
         runDetectionStep(true);
@@ -1653,7 +1688,8 @@
     function updateRoiInfo() {
       const el = document.getElementById('roiInfo');
       if (roi && roi.w > 0 && roi.h > 0) {
-        el.textContent = `已鎖定舞台框：(${roi.x}, ${roi.y}) 尺寸 ${roi.w}×${roi.h}`;
+        const modeTag = cropOnlyPreview ? '｜僅渲染框內省電中' : '｜全畫面預覽';
+        el.textContent = `已鎖定舞台框：(${roi.x}, ${roi.y}) 尺寸 ${roi.w}×${roi.h}${modeTag}`;
         el.style.color = '#34d399';
       } else {
         el.textContent = '目前框選範圍：未設定（預設全畫面）';
@@ -1661,38 +1697,66 @@
       }
     }
 
+    function drawPreviewFrame(active) {
+      if (!active || active.w <= 0 || active.h <= 0) return;
+
+      // 鎖框且開啟「僅顯示框內」時，直接將 gameCanvas 縮成 roi 尺寸並只畫框內局部，省去框外百萬像素繪製
+      if (isShowingCroppedOnly()) {
+        if (gameCanvas.width !== roi.w || gameCanvas.height !== roi.h) {
+          gameCanvas.width = roi.w;
+          gameCanvas.height = roi.h;
+        }
+        ctx.drawImage(active.src, roi.x, roi.y, roi.w, roi.h, 0, 0, roi.w, roi.h);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, roi.w - 4, roi.h - 4);
+        return;
+      }
+
+      if (gameCanvas.width !== active.w || gameCanvas.height !== active.h) {
+        gameCanvas.width = active.w;
+        gameCanvas.height = active.h;
+      }
+      ctx.drawImage(active.src, 0, 0, gameCanvas.width, gameCanvas.height);
+
+      if (roi && roi.w > 0 && roi.h > 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, gameCanvas.width, roi.y);
+        ctx.fillRect(0, roi.y + roi.h, gameCanvas.width, gameCanvas.height - (roi.y + roi.h));
+        ctx.fillRect(0, roi.y, roi.x, roi.h);
+        ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
+
+        const lineW = Math.max(3, Math.round(gameCanvas.width / 350));
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = lineW;
+        ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
+
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 145, 22);
+        ctx.fillStyle = '#042f2e';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText('舞台框 (自動水平對齊)', roi.x + 8, Math.max(15, roi.y - 6));
+      }
+    }
+
+    function forcePreviewRedraw() {
+      lastPreviewRenderTime = 0;
+      const active = getActiveSourceSize();
+      if (active) drawPreviewFrame(active);
+    }
+
     function ensureRenderLoop() {
       if (renderLoopStarted) return;
       renderLoopStarted = true;
 
-      function render() {
-        if (!document.hidden) {
-          const active = getActiveSourceSize();
-          if (active && active.w > 0 && active.h > 0) {
-            if (gameCanvas.width !== active.w || gameCanvas.height !== active.h) {
-              gameCanvas.width = active.w;
-              gameCanvas.height = active.h;
-            }
-            ctx.drawImage(active.src, 0, 0, gameCanvas.width, gameCanvas.height);
-
-            if (roi && roi.w > 0 && roi.h > 0) {
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-              ctx.fillRect(0, 0, gameCanvas.width, roi.y);
-              ctx.fillRect(0, roi.y + roi.h, gameCanvas.width, gameCanvas.height - (roi.y + roi.h));
-              ctx.fillRect(0, roi.y, roi.x, roi.h);
-              ctx.fillRect(roi.x + roi.w, roi.y, gameCanvas.width - (roi.x + roi.w), roi.h);
-
-              const lineW = Math.max(3, Math.round(gameCanvas.width / 350));
-              ctx.strokeStyle = '#10b981';
-              ctx.lineWidth = lineW;
-              ctx.strokeRect(roi.x, roi.y, roi.w, roi.h);
-
-              ctx.fillStyle = '#10b981';
-              ctx.fillRect(roi.x, Math.max(0, roi.y - 22), 145, 22);
-              ctx.fillStyle = '#042f2e';
-              ctx.font = 'bold 13px sans-serif';
-              ctx.fillText('舞台框 (自動水平對齊)', roi.x + 8, Math.max(15, roi.y - 6));
-            }
+      function render(now) {
+        // 1. 分頁在背景時跳過主畫布渲染
+        // 2. 限制主預覽畫布最高 10fps (100ms)，且冷卻暫停期間休眠主畫布（完全不影響背景偵測分析）
+        if (!document.hidden && (now - lastPreviewRenderTime) >= PREVIEW_FPS_INTERVAL_MS) {
+          lastPreviewRenderTime = now;
+          const isCoolingDown = (sourceMode === 'video' && pauseDetectionUntil > performance.now());
+          if (!isCoolingDown || isDragging) {
+            drawPreviewFrame(getActiveSourceSize());
           }
           updateTimeoutUI();
           drawPiPCanvasIfChanged();
